@@ -1,11 +1,13 @@
 #!/usr/bin/env python
 
+import os
 from google.appengine.ext import webapp
 from google.appengine.ext.webapp import util
 from google.appengine.api import urlfetch
 from xml.dom import minidom
 
-# for gdata
+from google.appengine.api import users
+from google.appengine.ext.webapp import template
 
 import gdata.calendar.service
 import gdata.calendar
@@ -17,9 +19,20 @@ import ConfigParser
 
 class MainHandler(webapp.RequestHandler):
     def get(self):
-        self.response.headers['Content-Type'] = 'text/html; charset=UTF-8'
-        self.response.out.write('<a href="/isbn/4873113989">isbn</a><br/ >')
-        self.response.out.write('<a href="/isbn/4873113989/dG5pUF9za3NBYWVTblNMc3FxOGxsWHc6MA">isbn/formkey</a>')
+
+        # self.response.out.write('<a href="/isbn/4873113989/dG5pUF9za3NBYWVTblNMc3FxOGxsWHc6MA">isbn/formkey</a><br />')
+        # self.response.out.write('<hr>')
+        user = users.get_current_user()
+        if user:
+            greeting = (u"%s <a href=\"%s\">logout</a>" %\
+                    (user.nickname(), users.create_logout_url("/")))
+        else:
+            greeting = (u"<a href=\"%s\">login</a>" %\
+                    users.create_login_url("/"))
+
+        template_dict = { 'name' : greeting }
+        path = os.path.join(os.path.dirname(__file__),'index.html')
+        self.response.out.write(template.render(path,template_dict))
 
 class IsbnHandler(webapp.RequestHandler):
     def get(self,isbn,formkey='dG5pUF9za3NBYWVTblNMc3FxOGxsWHc6MA'):
@@ -33,7 +46,11 @@ class IsbnHandler(webapp.RequestHandler):
         config = ConfigParser.ConfigParser()
         config.read('arduinoproxy.config')
         developerId = config.get('rakuten','developerId')
-        url = 'http://api.rakuten.co.jp/rws/3.0/rest?developerId='+developerId+'&operation=BooksBookSearch&version=2010-03-18&isbn=' + isbn
+        url = 'http://api.rakuten.co.jp/rws/3.0/rest?'\
+            + 'developerId=' + developerId\
+            + '&operation=BooksBookSearch'\
+            + '&version=2010-03-18'\
+            + '&isbn=' + isbn
         try:
             xml = urlfetch.fetch(url).content
         except:
@@ -49,7 +66,8 @@ class IsbnHandler(webapp.RequestHandler):
 
     def access_google_docs(self,booktitle,formkey):
 
-        # via http://code.google.com/intl/ja/appengine/docs/python/urlfetch/overview.html
+        # via 
+        # http://code.google.com/intl/ja/appengine/docs/python/urlfetch/overview.html
         import urllib
 
         # self.response.out.write(formkey)
@@ -77,7 +95,9 @@ class IsbnHandler(webapp.RequestHandler):
         calendar_service.source = 'Example-Example-1'
         calendar_service.ProgrammaticLogin()
         
-        feedURI = 'https://www.google.com/calendar/feeds/t.uehara%40gmail.com/private/full'
+        feedURI = 'https://www.google.com/calendar/feeds/'\
+                + 't.uehara%40gmail.com'\
+                + '/private/full'
         start_time = time.strftime('%Y-%m-%dT%H:%M:%S.000Z',time.gmtime())
         end_time = time.strftime('%Y-%m-%dT%H:%M:%S.000Z',time.gmtime(time.time() + 3600))
         
@@ -97,3 +117,4 @@ def main():
 
 if __name__ == '__main__':
     main()
+
