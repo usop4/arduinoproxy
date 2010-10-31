@@ -1,13 +1,19 @@
 #!/usr/bin/env python
 
-import os
-from google.appengine.ext import webapp
-from google.appengine.ext.webapp import util
-from google.appengine.api import urlfetch
-from xml.dom import minidom
+# To commit
+# git remote add origin git@github.com:usopyon/macbookconfig.git
+# git push origin master
 
+import os
+import cgi
+
+from google.appengine.api import urlfetch
 from google.appengine.api import users
+from google.appengine.ext import webapp
+from google.appengine.ext import db
+from google.appengine.ext.webapp import util
 from google.appengine.ext.webapp import template
+from xml.dom import minidom
 
 import gdata.calendar.service
 import gdata.calendar
@@ -17,25 +23,85 @@ import getopt, sys, string, time, atom
 
 import ConfigParser
 
+class UserAction(db.Model):
+    user = db.StringProperty()
+    name = db.StringProperty()
+    url0 = db.StringProperty()
+    url1 = db.StringProperty()
+    url2 = db.StringProperty()
+    type = db.StringProperty()
+    TagName = db.StringProperty()
+    val1 = db.StringProperty()
+    val2 = db.StringProperty()
+
+class NewHandler(webapp.RequestHandler):
+    def get(self):
+        user = users.get_current_user()
+        if not user:
+            pass
+        template_dict = {
+                'user':user.email(),
+                'name':'action1',
+                'url1':'http://',
+                'url2':'',
+                'url3':'',
+                'all_checked':'checked',
+                'tag_checked':'',
+                'TagName':'',
+                'val1':'1234',
+                'val2':'',
+                }                
+        path = os.path.join(os.path.dirname(__file__),'edit.html')
+        self.response.out.write(template.render(path,template_dict))
+
+    def post(self):
+        user = users.get_current_user()
+        ua = UserAction(
+                user = user.email(),
+                name = cgi.escape(self.request.get('name')),
+                url1 = cgi.escape(self.request.get('url1')),
+                url2 = cgi.escape(self.request.get('url2')),
+                url3 = cgi.escape(self.request.get('url3')),
+                val1 = cgi.escape(self.request.get('val1')),
+                val2 = cgi.escape(self.request.get('val2')),
+                type = cgi.escape(self.request.get('type')),
+                TagName = cgi.escape(self.request.get('TagName')),
+                )
+        # self.response.out.write(ua.type)
+        ua.put()
+        self.redirect("/")
+
 class MainHandler(webapp.RequestHandler):
     def get(self):
 
-        # self.response.out.write('<a href="/isbn/4873113989/dG5pUF9za3NBYWVTblNMc3FxOGxsWHc6MA">isbn/formkey</a><br />')
-        # self.response.out.write('<hr>')
+        link = """
+<a href="/new">create action</a><br />
+<a href="/isbn/4873113989/dG5pUF9za3NBYWVTblNMc3FxOGxsWHc6MA">
+/isbn/formkey</a>
+"""
         user = users.get_current_user()
         if user:
             greeting = (u"%s <a href=\"%s\">logout</a>" %\
                     (user.nickname(), users.create_logout_url("/")))
+            actions = UserAction.all()
+            template_dict = {
+                'greeting' : greeting,
+                'link' : link,
+                'actions':actions
+                }
         else:
             greeting = (u"<a href=\"%s\">login</a>" %\
                     users.create_login_url("/"))
-
-        template_dict = { 'name' : greeting }
+            template_dict = {
+                'greeting' : greeting,
+                'link' : ''
+                }
         path = os.path.join(os.path.dirname(__file__),'index.html')
         self.response.out.write(template.render(path,template_dict))
 
 class IsbnHandler(webapp.RequestHandler):
     def get(self,isbn,formkey='dG5pUF9za3NBYWVTblNMc3FxOGxsWHc6MA'):
+
         self.response.headers['Content-Type'] = 'text/html; charset=UTF-8'
         booktitle = self.access_rakuten_api(isbn)
         self.access_google_docs(booktitle,formkey)
@@ -53,26 +119,23 @@ class IsbnHandler(webapp.RequestHandler):
             + '&isbn=' + isbn
         try:
             xml = urlfetch.fetch(url).content
-        except:
-            return 'connection failed'
-        dom = minidom.parseString(xml)
-        titles = dom.getElementsByTagName("title")
-        subtitles = dom.getElementsByTagName("subTitle")
-        try:
+            dom = minidom.parseString(xml)
+            titles = dom.getElementsByTagName("title")
+            subtitles = dom.getElementsByTagName("subTitle")
             rakuten_result = titles[0].childNodes[0].data
             return rakuten_result.encode('utf_8')
         except IndexError:
             return 'Book Not Fount:'+isbn
+        except:
+            return 'connection failed'
 
     def access_google_docs(self,booktitle,formkey):
 
-        # via 
-        # http://code.google.com/intl/ja/appengine/docs/python/urlfetch/overview.html
         import urllib
 
-        # self.response.out.write(formkey)
-
-        url = 'http://spreadsheets.google.com/formResponse?formkey='+formkey+'&ifq'
+        url = 'http://spreadsheets.google.com/formResponse?'\
+                + 'formkey=' + formkey\
+                + '&ifq'
         form_fields = {
             "entry.1.single": booktitle,
             "submit": "submit"
@@ -82,6 +145,7 @@ class IsbnHandler(webapp.RequestHandler):
                 payload = urllib.urlencode(form_fields),
                 method = urlfetch.POST)
         except:
+            self.response.out.write('err:')
             raise
 
     def access_google_calendar(self,booktitle):
@@ -92,26 +156,26 @@ class IsbnHandler(webapp.RequestHandler):
         calendar_service = gdata.calendar.service.CalendarService()
         calendar_service.email = config.get('google','id')
         calendar_service.password = config.get('google','pw')
-        calendar_service.source = 'Example-Example-1'
         calendar_service.ProgrammaticLogin()
         
         feedURI = 'https://www.google.com/calendar/feeds/'\
                 + 't.uehara%40gmail.com'\
                 + '/private/full'
-        start_time = time.strftime('%Y-%m-%dT%H:%M:%S.000Z',time.gmtime())
-        end_time = time.strftime('%Y-%m-%dT%H:%M:%S.000Z',time.gmtime(time.time() + 3600))
         
         event = gdata.calendar.CalendarEventEntry()
         event.title = atom.Title(text = booktitle )
-        event.content = atom.Content(text = 'TestContent')
-        event.when.append(gdata.calendar.When(start_time = start_time, end_time = end_time ))
-        new_event = calendar_service.InsertEvent(event, feedURI)
+        try:
+            new_event = calendar_service.InsertEvent(event, feedURI)
+        except:
+            self.response.out.write('err:')
+            raise
 
 def main():
     application = webapp.WSGIApplication([
         ('/', MainHandler),
         ('/isbn/([0-9]{10})/(.*)', IsbnHandler),
         ('/isbn/(.*)', IsbnHandler),
+        ('/new', NewHandler),
     ],debug=True)
     util.run_wsgi_app(application)
 

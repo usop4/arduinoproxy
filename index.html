@@ -1,6 +1,14 @@
 <html>
 <body>
-    {{ name }}
+    {{ greeting }}<br />
+    {{ link }}<br />
+
+    <ul>
+        {% for action in actions %}
+        <li>{{ action.user }}/{{ action.name }}</li>
+        {% endfor %}
+    </ur>
+
 </body>
 </html>
 
