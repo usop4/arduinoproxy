@@ -1,14 +1,15 @@
 <html>
 <body>
+    <h1><a href="/">arduino proxy</a></h1>
     {{ greeting }}<br />
     {{ link }}<br />
 
     <ul>
-        {% for action in actions %}
+        {% for ua in uas %}
         <li>
-        <a href="/edit/{{ action.user }}/{{ action.name }}">
-        {{ action.user }}/{{ action.name }}</a>
-        <a href="/del/{{ action.user }}/{{ action.name }}">[x]</a>
+        <a href="/edit/{{ ua.user }}/{{ ua.name }}">
+        {{ ua.user }}/{{ ua.name }}</a>
+        <a href="/del/{{ ua.user }}/{{ ua.name }}">[x]</a>
         </li>
         {% endfor %}
     </ur>

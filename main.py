@@ -25,12 +25,12 @@ import getopt, sys, string, time, atom
 import ConfigParser
 
 class UserAction(db.Model):
-    user = db.StringProperty()
-    name = db.StringProperty()
-    url0 = db.StringProperty()
+    user = db.StringProperty(required=True)
+    name = db.StringProperty(required=True)
+    url0 = db.StringProperty(required=True)
     url1 = db.StringProperty()
     url2 = db.StringProperty()
-    type = db.StringProperty()
+    type = db.StringProperty(required=True)
     TagName = db.StringProperty()
     val1 = db.StringProperty()
     val2 = db.StringProperty()
@@ -41,23 +41,33 @@ class NewHandler(webapp.RequestHandler):
         if not user:
             self.redirect("/") 
             return
-        cnt = '1'
+        cnt = 0
+        while 1:
+            name = 'action' + str(cnt)
+            uas = UserAction.gql(\
+                "WHERE name = :1 AND user = :2 ",\
+                name,\
+                user.email())
+            if uas.count():
+                cnt = cnt + 1
+            else:
+                break
         template_dict = {
-                'cnt':cnt,
                 'form_action':'/new',
                 'user':user.email(),
-                'name':'action1',
-                'url0':'http://',
+                'name' : name,
+                'url0' : 'http://',
                 'all_checked':'checked',
                 }                
         path = os.path.join(os.path.dirname(__file__),'edit.html')
         self.response.out.write(template.render(path,template_dict))
+        return
 
     def post(self):
         user = users.get_current_user()
         ua = UserAction(
                 user = user.email(),
-                name= self.request.POST['name'],
+                name = self.request.POST['name'],
                 url0 = self.request.POST['url0'],
                 url1 = self.request.POST['url1'],
                 url2 = self.request.POST['url2'],
@@ -75,37 +85,30 @@ class EditHandler(webapp.RequestHandler):
         if not current_user:
             self.redirect("/") 
             return
-        query = db.GqlQuery(\
-                "SELECT * FROM UserAction WHERE name = :1 AND user = :2 ",\
+        query = UserAction.gql(\
+                "WHERE name = :1 AND user = :2 ",\
                 urllib.unquote_plus(name),\
                 urllib.unquote_plus(user))
-        result = query.get()
-        if result.type == 'All':
+        ua = query.get()
+        if ua.type == 'All':
             all_checked = 'checked'
             tag_checked = ''
-        elif result.type == 'ByTagName':
+        elif ua.type == 'ByTagName':
             all_checked = ''
             tag_checked = 'checked'
         template_dict = {
-            'form_action':'/edit',
-            'key':str(result.key()),
-            'user':result.user,
-            'name':result.name,
-            'url0':result.url0,
-            'url1':result.url1,
-            'url2':result.url2,
-            'all_checked':all_checked,
-            'tag_checked':tag_checked,
-            'TagName':result.TagName,
-            'val1':result.val1,
-            'val2':result.val2,
-                } 
+                'ua':ua,
+                'form_action':'/edit',
+                'key':str(ua.key()),
+                'all_checked':all_checked,
+                'tag_checked':tag_checked,
+                }
         path = os.path.join(os.path.dirname(__file__),'edit.html')
         self.response.out.write(template.render(path,template_dict))
 
     def post(self):
         ua = db.get(db.Key(self.request.POST['key']))
-        # ua = db.get_by_key_name(self.request.POST['key'])
+        ua.name = self.request.POST['name']
         ua.url0 = self.request.POST['url0']
         ua.url1 = self.request.POST['url1']
         ua.url2 = self.request.POST['url2']
@@ -122,13 +125,42 @@ class EditHandler(webapp.RequestHandler):
 class DeleteHandler(webapp.RequestHandler):
     def get(self,user,name):
         query = UserAction.all()
-        query = db.GqlQuery(\
-                "SELECT * FROM UserAction WHERE name = :1 AND user = :2 ",\
+        if 1:
+            query = UserAction.gql(\
+                "WHERE name = :1 AND user = :2 ",\
                 urllib.unquote_plus(name),\
                 urllib.unquote_plus(user))
-        result = query.get()
-        result.delete()
+        else:
+            query = UserActionl.all()
+        ua = query.get()
+        ua.delete()
         self.redirect("/")
+
+class UserHandler(webapp.RequestHandler):
+    def get(self,user,name):
+        query = UserAction.gql(\
+            "WHERE name = :1 AND user = :2 ",\
+            urllib.unquote_plus(name),\
+            urllib.unquote_plus(user))
+        ua = query.get()
+        url = ua.url0 + ua.val1 + ua.url1 + ua.val2 + ua.url2
+        try:
+            xml = urlfetch.fetch(url).content
+        except:
+            raise
+        dom = minidom.parseString(xml)
+        if ua.type == 'ByTagName':
+            ByTagName = dom.getElementsByTagName(ua.TagName)
+            for i in range(100):
+                try:
+                    self.response.out.write(ByTagName[i].childNodes[0].data)
+                    self.response.out.write('\n')
+                except:
+                    pass
+        elif ua.type == 'All':
+            self.response.out.write(dom)
+        else:
+            pass
 
 class MainHandler(webapp.RequestHandler):
     def get(self):
@@ -139,21 +171,22 @@ class MainHandler(webapp.RequestHandler):
 /isbn/formkey</a>
 """
         user = users.get_current_user()
+        uas = UserAction.all()
         if user:
             greeting = (u"%s <a href=\"%s\">logout</a>" %\
                     (user.nickname(), users.create_logout_url("/")))
-            actions = UserAction.all()
             template_dict = {
                 'greeting' : greeting,
                 'link' : link,
-                'actions':actions
+                'uas':uas.filter('user = ',user.email()),
                 }
         else:
             greeting = (u"<a href=\"%s\">login</a>" %\
                     users.create_login_url("/"))
             template_dict = {
                 'greeting' : greeting,
-                'link' : ''
+                'link' : '',
+                'uas':uas,
                 }
         path = os.path.join(os.path.dirname(__file__),'index.html')
         self.response.out.write(template.render(path,template_dict))
@@ -236,6 +269,7 @@ def main():
         ('/edit/(.*)/(.*)', EditHandler),
         ('/edit', EditHandler),
         ('/del/(.*)/(.*)', DeleteHandler),
+        ('/user/(.*)/(.*)', UserHandler),
     ],debug=True)
     util.run_wsgi_app(application)
 
