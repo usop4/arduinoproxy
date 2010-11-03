@@ -5,7 +5,11 @@
 
     <ul>
         {% for action in actions %}
-        <li>{{ action.user }}/{{ action.name }}</li>
+        <li>
+        <a href="/edit/{{ action.user }}/{{ action.name }}">
+        {{ action.user }}/{{ action.name }}</a>
+        <a href="/del/{{ action.user }}/{{ action.name }}">[x]</a>
+        </li>
         {% endfor %}
     </ur>
 

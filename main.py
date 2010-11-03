@@ -1,11 +1,12 @@
 #!/usr/bin/env python
 
-# To commit
+# To push to github 
 # git remote add origin git@github.com:usopyon/macbookconfig.git
 # git push origin master
 
 import os
 import cgi
+import urllib
 
 from google.appengine.api import urlfetch
 from google.appengine.api import users
@@ -38,18 +39,16 @@ class NewHandler(webapp.RequestHandler):
     def get(self):
         user = users.get_current_user()
         if not user:
-            pass
+            self.redirect("/") 
+            return
+        cnt = '1'
         template_dict = {
+                'cnt':cnt,
+                'form_action':'/new',
                 'user':user.email(),
                 'name':'action1',
-                'url1':'http://',
-                'url2':'',
-                'url3':'',
+                'url0':'http://',
                 'all_checked':'checked',
-                'tag_checked':'',
-                'TagName':'',
-                'val1':'1234',
-                'val2':'',
                 }                
         path = os.path.join(os.path.dirname(__file__),'edit.html')
         self.response.out.write(template.render(path,template_dict))
@@ -58,17 +57,77 @@ class NewHandler(webapp.RequestHandler):
         user = users.get_current_user()
         ua = UserAction(
                 user = user.email(),
-                name = cgi.escape(self.request.get('name')),
-                url1 = cgi.escape(self.request.get('url1')),
-                url2 = cgi.escape(self.request.get('url2')),
-                url3 = cgi.escape(self.request.get('url3')),
-                val1 = cgi.escape(self.request.get('val1')),
-                val2 = cgi.escape(self.request.get('val2')),
-                type = cgi.escape(self.request.get('type')),
-                TagName = cgi.escape(self.request.get('TagName')),
+                name= self.request.POST['name'],
+                url0 = self.request.POST['url0'],
+                url1 = self.request.POST['url1'],
+                url2 = self.request.POST['url2'],
+                type = self.request.POST['type'],
+                TagName= self.request.POST['TagName'],
+                val1 = self.request.POST['val1'],
+                val2 = self.request.POST['val2'],
                 )
-        # self.response.out.write(ua.type)
         ua.put()
+        self.redirect("/")
+
+class EditHandler(webapp.RequestHandler):
+    def get(self,user,name):
+        current_user = users.get_current_user()
+        if not current_user:
+            self.redirect("/") 
+            return
+        query = db.GqlQuery(\
+                "SELECT * FROM UserAction WHERE name = :1 AND user = :2 ",\
+                urllib.unquote_plus(name),\
+                urllib.unquote_plus(user))
+        result = query.get()
+        if result.type == 'All':
+            all_checked = 'checked'
+            tag_checked = ''
+        elif result.type == 'ByTagName':
+            all_checked = ''
+            tag_checked = 'checked'
+        template_dict = {
+            'form_action':'/edit',
+            'key':str(result.key()),
+            'user':result.user,
+            'name':result.name,
+            'url0':result.url0,
+            'url1':result.url1,
+            'url2':result.url2,
+            'all_checked':all_checked,
+            'tag_checked':tag_checked,
+            'TagName':result.TagName,
+            'val1':result.val1,
+            'val2':result.val2,
+                } 
+        path = os.path.join(os.path.dirname(__file__),'edit.html')
+        self.response.out.write(template.render(path,template_dict))
+
+    def post(self):
+        ua = db.get(db.Key(self.request.POST['key']))
+        # ua = db.get_by_key_name(self.request.POST['key'])
+        ua.url0 = self.request.POST['url0']
+        ua.url1 = self.request.POST['url1']
+        ua.url2 = self.request.POST['url2']
+        ua.type = self.request.POST['type']
+        ua.TagName = self.request.POST['TagName']
+        ua.val1 = self.request.POST['val1']
+        ua.val2 = self.request.POST['val2']
+        try:
+            db.put(ua)
+            self.redirect("/")
+        except:
+            raise
+
+class DeleteHandler(webapp.RequestHandler):
+    def get(self,user,name):
+        query = UserAction.all()
+        query = db.GqlQuery(\
+                "SELECT * FROM UserAction WHERE name = :1 AND user = :2 ",\
+                urllib.unquote_plus(name),\
+                urllib.unquote_plus(user))
+        result = query.get()
+        result.delete()
         self.redirect("/")
 
 class MainHandler(webapp.RequestHandler):
@@ -131,8 +190,6 @@ class IsbnHandler(webapp.RequestHandler):
 
     def access_google_docs(self,booktitle,formkey):
 
-        import urllib
-
         url = 'http://spreadsheets.google.com/formResponse?'\
                 + 'formkey=' + formkey\
                 + '&ifq'
@@ -176,6 +233,9 @@ def main():
         ('/isbn/([0-9]{10})/(.*)', IsbnHandler),
         ('/isbn/(.*)', IsbnHandler),
         ('/new', NewHandler),
+        ('/edit/(.*)/(.*)', EditHandler),
+        ('/edit', EditHandler),
+        ('/del/(.*)/(.*)', DeleteHandler),
     ],debug=True)
     util.run_wsgi_app(application)
 
