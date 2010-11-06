@@ -1,45 +1,68 @@
 <html>
-    <head>
-        <title>arduino proxy {{ form_action }}</title>
-        <script type="text/javascript" src="http://code.jquery.com/jquery-1.4.3.min.js"></script>
-        <script type="text/javascript">
-            $(function() {
-                    $("input[name=type]").val(['{{ type }}{{ ua.type }}']);
-            });
-        </script>
-    </head>
-    <body>
-        <h1><a href="/">arduino proxy</a></h1>
-        {{ debug }}
-        <form action="/{{ form_action }}" method="post">
-            <input type="hidden" name="key" value="{{ ua.key }}">
-            {{ user }}{{ ua.user }}/
-            <input type="text" name="name" value="{{ name }}{{ ua.name }}">
-            <input type="submit" value="submit">
-            <h2>Fetch</h2>
-            <input type="text" name="url0" value="{{ url0 }}{{ ua.url0 }}">
-            (ex.http://)<br />
-            +Parameter<br />
-            +<input type="text" name="url1" value="{{ url1 }}{{ ua.url1 }}">
-            <br />
+<head>
+<title>arduino proxy : {{ form_action }}</title>
+<style type="text/css">
+<!--
+.block{
+    margin:5px;
+    border:2px dotted #0000FF;
+    padding:5px 5px 5px 5px;
+    max-width:400px
+}
+.h2bold{
+    font-weight:bold;
+}
+-->
+</style>
+<script type="text/javascript" src="http://code.jquery.com/jquery-1.4.3.min.js"></script>
+<script type="text/javascript">
+    $(function() {
+        $("input[name=type]").val(['{{ type }}{{ ua.type }}']);
+        if( "{{ form_action }}" == "edit" ){
+            $("input[name=name]").attr("disabled","disabled");
+        }
+    }); 
+</script>
+</head>
+<body>
+    <h1><a href="/">arduino proxy</a></h1>
+    <div id="testurl">url</div>
+    <form action="/{{ form_action }}" method="post">
+        <input type="hidden" name="key" value="{{ ua.key }}">
+        {{ user }}{{ ua.user }}/
+        <input type="text" name="name" value="{{ name }}{{ ua.name }}">
+        
+        <div class="block">
+            <span class="h2bold">Fetch</span>
+        <a href ="https://cacoo.com/diagrams/n4Mydbj5iWA9M9LR-671C8.png">
+        [?]
+    </a><br />
+        <input type="text" name="url0" value="{{ url0 }}{{ ua.url0 }}">
+        <br />
+        +Parameter<br />
+        +<input type="text" name="url1" value="{{ url1 }}{{ ua.url1 }}">
+        <br /></div>
 
-            <h2>Test Parameter(Arduino Send)</h2>
-            <input type="text" name="val1" value="{{ val1 }}{{ ua.val1 }}">/
+        <div class="block">
+            <span class="h2bold">Test Parameter</span><br />
+        <input type="text" name="val1" value="{{ val1 }}{{ ua.val1 }}">
+        </div>
 
-            <h2>Response</h2>
-            <input type="radio" name="type" value="All">
-            All<br />
-            <input type="radio" name="type" value="ByTagName">
-            ByTagName
-            <input type="text" name="TagName" value="{{ TagName }}{{ ua.TagName }}"><br />
-            <input type="submit" value="save">
-        </form>
-        <a href="/user/{{ ua.user }}/{{ ua.name }}">
-        test
-        </a>
-
-
-    </body>
+        <div class="block">
+            <span class="h2bold">Response</span><br />
+        <input type="radio" name="type" value="All">
+        All<br />
+        <input type="radio" name="type" value="ByTagName">
+        ByTagName
+        <input type="text" name="TagName" value="{{ TagName }}{{ ua.TagName }}"><br />
+        </div>
+        <input type="submit" value="save">
+    </form>
+    <a class="test_field" href="/user/{{ ua.user }}/{{ ua.name }}">
+    test
+    </a>
+    {{ debug }}
+</body>
 </html>
 
 

@@ -50,18 +50,9 @@ class NewHandler(webapp.RequestHandler):
                 cnt = cnt + 1
             else:
                 break
-        ua = UserAction(
-                user = user.email(),
-                name = name,
-                url0 = 'http://goodsite.cocolog-nifty.com/',
-                val1 = 'uessay/',
-                url1 = 'atom.xml',
-                type = 'ByTagName',
-                )
 
         template_dict = {
                 'form_action' : 'new',
-                # 'ua' : ua,
                 'user':user.email(),
                 'name' : name,
                 'url0' : 'http://goodsite.cocolog-nifty.com/',
@@ -76,6 +67,16 @@ class NewHandler(webapp.RequestHandler):
 
     def post(self):
         user = users.get_current_user()
+        name = self.request.POST['name']
+        uas = UserAction.gql(\
+            "WHERE name = :1 AND user = :2 ",\
+            name,\
+            user.email())
+        if uas.count():
+            self.response.out.write('Error : <font color="red">')
+            self.response.out.write(name)
+            self.response.out.write('</font> is used. Please type other name.')
+            return
         ua = UserAction(
                 user = user.email(),
                 name = self.request.POST['name'],
@@ -109,7 +110,6 @@ class EditHandler(webapp.RequestHandler):
 
     def post(self):
         ua = db.get(db.Key(self.request.POST['key']))
-        ua.name = self.request.POST['name']
         ua.url0 = self.request.POST['url0']
         ua.url1 = self.request.POST['url1']
         ua.type = self.request.POST['type']
