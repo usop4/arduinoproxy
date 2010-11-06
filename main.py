@@ -57,7 +57,7 @@ class NewHandler(webapp.RequestHandler):
                 'user':user.email(),
                 'name' : name,
                 'url0' : 'http://',
-                'all_checked':'checked',
+                'type':'ByTagName',
                 }                
         path = os.path.join(os.path.dirname(__file__),'edit.html')
         self.response.out.write(template.render(path,template_dict))
@@ -90,18 +90,10 @@ class EditHandler(webapp.RequestHandler):
                 urllib.unquote_plus(name),\
                 urllib.unquote_plus(user))
         ua = query.get()
-        if ua.type == 'All':
-            all_checked = 'checked'
-            tag_checked = ''
-        elif ua.type == 'ByTagName':
-            all_checked = ''
-            tag_checked = 'checked'
         template_dict = {
                 'ua':ua,
                 'form_action':'/edit',
                 'key':str(ua.key()),
-                'all_checked':all_checked,
-                'tag_checked':tag_checked,
                 }
         path = os.path.join(os.path.dirname(__file__),'edit.html')
         self.response.out.write(template.render(path,template_dict))
@@ -123,16 +115,8 @@ class EditHandler(webapp.RequestHandler):
             raise
 
 class DeleteHandler(webapp.RequestHandler):
-    def get(self,user,name):
-        query = UserAction.all()
-        if 1:
-            query = UserAction.gql(\
-                "WHERE name = :1 AND user = :2 ",\
-                urllib.unquote_plus(name),\
-                urllib.unquote_plus(user))
-        else:
-            query = UserActionl.all()
-        ua = query.get()
+    def get(self,key):
+        ua = db.get(db.Key(urllib.unquote_plus(key)))
         ua.delete()
         self.redirect("/")
 
@@ -268,7 +252,7 @@ def main():
         ('/new', NewHandler),
         ('/edit/(.*)/(.*)', EditHandler),
         ('/edit', EditHandler),
-        ('/del/(.*)/(.*)', DeleteHandler),
+        ('/del/(.*)', DeleteHandler),
         ('/user/(.*)/(.*)', UserHandler),
     ],debug=True)
     util.run_wsgi_app(application)

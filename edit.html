@@ -1,4 +1,13 @@
 <html>
+    <head>
+        <title>arduino proxy {{ form_action }}</title>
+        <script type="text/javascript" src="http://code.jquery.com/jquery-1.4.3.min.js"></script>
+        <script type="text/javascript">
+            $(function() {
+                    $("input[name=type]").val(['{{ type }}{{ ua.type }}']);
+            });
+        </script>
+    </head>
     <body>
         <h1><a href="/">arduino proxy</a></h1>
         {{ debug }}
