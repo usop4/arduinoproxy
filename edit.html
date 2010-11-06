@@ -11,31 +11,28 @@
     <body>
         <h1><a href="/">arduino proxy</a></h1>
         {{ debug }}
-        <form action="{{ form_action }}" method="post">
+        <form action="/{{ form_action }}" method="post">
             <input type="hidden" name="key" value="{{ ua.key }}">
             {{ user }}{{ ua.user }}/
             <input type="text" name="name" value="{{ name }}{{ ua.name }}">
             <input type="submit" value="submit">
             <h2>Fetch</h2>
-            <input type="text" name="url0" value="{{ url0 }}{{ ua.url0 }}"><br />
-            parameter1<br />
-            <input type="text" name="url1" value="{{ ua.url1 }}"><br />
-            parameter2<br />
-            <input type="text" name="url2" value="{{ ua.url2 }}"><br />
+            <input type="text" name="url0" value="{{ url0 }}{{ ua.url0 }}">
+            (ex.http://)<br />
+            +Parameter<br />
+            +<input type="text" name="url1" value="{{ url1 }}{{ ua.url1 }}">
+            <br />
+
+            <h2>Test Parameter(Arduino Send)</h2>
+            <input type="text" name="val1" value="{{ val1 }}{{ ua.val1 }}">/
+
             <h2>Response</h2>
-            <input type="radio" name="type" value="All" {{ all_checked }}>
+            <input type="radio" name="type" value="All">
             All<br />
-            <input type="radio" name="type" value="ByTagName" {{ tag_checked }}>
+            <input type="radio" name="type" value="ByTagName">
             ByTagName
-            <input type="text" name="TagName" value="{{ ua.TagName }}"><br />
-            <h2>Test</h2>
-            http://arduinoproxy.appspot.com/<br />
-            user/
-            {{ user }}{{ ua.user }}/
-            {{ name }}{{ ua.name }}/<br />
-            <input type="text" name="val1" value="{{ ua.val1 }}">/
-            <input type="text" name="val2" value="{{ ua.val2 }}"><br />
-            <input type="submit" value="submit">
+            <input type="text" name="TagName" value="{{ TagName }}{{ ua.TagName }}"><br />
+            <input type="submit" value="save">
         </form>
         <a href="/user/{{ ua.user }}/{{ ua.name }}">
         test

@@ -29,11 +29,9 @@ class UserAction(db.Model):
     name = db.StringProperty(required=True)
     url0 = db.StringProperty(required=True)
     url1 = db.StringProperty()
-    url2 = db.StringProperty()
     type = db.StringProperty(required=True)
     TagName = db.StringProperty()
     val1 = db.StringProperty()
-    val2 = db.StringProperty()
 
 class NewHandler(webapp.RequestHandler):
     def get(self):
@@ -52,12 +50,25 @@ class NewHandler(webapp.RequestHandler):
                 cnt = cnt + 1
             else:
                 break
+        ua = UserAction(
+                user = user.email(),
+                name = name,
+                url0 = 'http://goodsite.cocolog-nifty.com/',
+                val1 = 'uessay/',
+                url1 = 'atom.xml',
+                type = 'ByTagName',
+                )
+
         template_dict = {
-                'form_action':'/new',
+                'form_action' : 'new',
+                # 'ua' : ua,
                 'user':user.email(),
                 'name' : name,
-                'url0' : 'http://',
+                'url0' : 'http://goodsite.cocolog-nifty.com/',
+                'val1' : 'uessay/',
+                'url1' : 'atom.xml',
                 'type':'ByTagName',
+                'TagName':'title',
                 }                
         path = os.path.join(os.path.dirname(__file__),'edit.html')
         self.response.out.write(template.render(path,template_dict))
@@ -70,11 +81,9 @@ class NewHandler(webapp.RequestHandler):
                 name = self.request.POST['name'],
                 url0 = self.request.POST['url0'],
                 url1 = self.request.POST['url1'],
-                url2 = self.request.POST['url2'],
                 type = self.request.POST['type'],
                 TagName= self.request.POST['TagName'],
                 val1 = self.request.POST['val1'],
-                val2 = self.request.POST['val2'],
                 )
         ua.put()
         self.redirect("/")
@@ -92,7 +101,7 @@ class EditHandler(webapp.RequestHandler):
         ua = query.get()
         template_dict = {
                 'ua':ua,
-                'form_action':'/edit',
+                'form_action':'edit',
                 'key':str(ua.key()),
                 }
         path = os.path.join(os.path.dirname(__file__),'edit.html')
@@ -103,11 +112,9 @@ class EditHandler(webapp.RequestHandler):
         ua.name = self.request.POST['name']
         ua.url0 = self.request.POST['url0']
         ua.url1 = self.request.POST['url1']
-        ua.url2 = self.request.POST['url2']
         ua.type = self.request.POST['type']
         ua.TagName = self.request.POST['TagName']
         ua.val1 = self.request.POST['val1']
-        ua.val2 = self.request.POST['val2']
         try:
             db.put(ua)
             self.redirect("/")
@@ -127,7 +134,7 @@ class UserHandler(webapp.RequestHandler):
             urllib.unquote_plus(name),\
             urllib.unquote_plus(user))
         ua = query.get()
-        url = ua.url0 + ua.val1 + ua.url1 + ua.val2 + ua.url2
+        url = ua.url0 + ua.val1 + ua.url1
         try:
             xml = urlfetch.fetch(url).content
         except:
