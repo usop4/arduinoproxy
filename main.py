@@ -1,9 +1,5 @@
 #!/usr/bin/env python
 
-# To push to github 
-# git remote add origin git@github.com:usopyon/macbookconfig.git
-# git push origin master
-
 import os
 import cgi
 import urllib
@@ -16,10 +12,13 @@ from google.appengine.ext.webapp import util
 from google.appengine.ext.webapp import template
 from xml.dom import minidom
 
-import gdata.calendar.service
-import gdata.calendar
-import gdata.service
+import atom
 import atom.service
+import gdata.auth
+import gdata.alt.appengine
+import gdata.calendar
+import gdata.calendar.service
+import gdata.service
 import getopt, sys, string, time, atom
 
 import ConfigParser
@@ -32,6 +31,16 @@ class UserAction(db.Model):
     type = db.StringProperty(required=True)
     TagName = db.StringProperty()
     val1 = db.StringProperty()
+
+class Gcal(db.Model):
+    title = db.StringProperty(required=True)
+    description = db.TextProperty()
+    time = db.DateTimeProperty()
+    location = db.TextProperty()
+    creator = db.UserProperty()
+    edit_link = db.TextProperty()
+    gcal_event_link = db.TextProperty()
+    gcal_event_xml = db.TextProperty()
 
 class NewHandler(webapp.RequestHandler):
     def get(self):
@@ -159,6 +168,27 @@ class UserHandler(webapp.RequestHandler):
         else:
             pass
 
+class GcalHandler(webapp.RequestHandler):
+    def __init__(self):
+        self.calendar_client = gdata.calendar.service.CalendarService()
+        gdata.alt.appengine.run_on_appengine(self.calendar_client)
+
+    def get(self):
+        self.response.out.write('gcal')
+        token_request_url = None
+        auth_token = gdata.auth.extract_auth_sub_token_from_url(self.request.uri)
+        if auth_token:
+            self.calendar_client.SetAuthSubToken(
+                    self.calendar_client.upgrade_to_session_token(auth_token))
+            
+        if not isinstance(self.calendar_client.token_store.find_token(
+            'http://www.google.com/calendar/feeds/'),
+            gdata.auth.AuthSubToken):
+            token_request_uri = gdata.auth.generate_auth_sub_url(self.request.uri,('http://www.google.com/calendar/feeds/default/',))
+
+    def post(self):
+        pass
+
 class MainHandler(webapp.RequestHandler):
     def get(self):
         """provide main page layout"""
@@ -233,7 +263,7 @@ class IsbnHandler(webapp.RequestHandler):
             raise
 
     def access_google_calendar(self,booktitle):
-        """send booktitle to google calender"""
+        """send booktitle to google calendar"""
         config = ConfigParser.ConfigParser()
         config.read('arduinoproxy.config')
 
@@ -264,6 +294,7 @@ def main():
         ('/edit', EditHandler),
         ('/del/(.*)', DeleteHandler),
         ('/user/(.*)/(.*)', UserHandler),
+        ('/gcal', GcalHandler),
     ],debug=True)
     util.run_wsgi_app(application)
 
