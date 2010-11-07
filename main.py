@@ -149,7 +149,7 @@ class UserHandler(webapp.RequestHandler):
                 except:
                     pass
         elif ua.type == 'All':
-            self.response.out.write(dom)
+            self.response.out.write(xml)
         else:
             pass
 
@@ -158,8 +158,6 @@ class MainHandler(webapp.RequestHandler):
 
         link = """
 <a href="/new">create action</a><br />
-<a href="/isbn/4873113989/dG5pUF9za3NBYWVTblNMc3FxOGxsWHc6MA">
-/isbn/formkey</a>
 """
         user = users.get_current_user()
         uas = UserAction.all()
@@ -177,7 +175,7 @@ class MainHandler(webapp.RequestHandler):
             template_dict = {
                 'greeting' : greeting,
                 'link' : '',
-                'uas':uas,
+                # 'uas':uas,
                 }
         path = os.path.join(os.path.dirname(__file__),'index.html')
         self.response.out.write(template.render(path,template_dict))

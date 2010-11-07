@@ -26,7 +26,6 @@
 </head>
 <body>
     <h1><a href="/">arduino proxy</a></h1>
-    <div id="testurl">url</div>
     <form action="/{{ form_action }}" method="post">
         <input type="hidden" name="key" value="{{ ua.key }}">
         {{ user }}{{ ua.user }}/
@@ -58,9 +57,6 @@
         </div>
         <input type="submit" value="save">
     </form>
-    <a class="test_field" href="/user/{{ ua.user }}/{{ ua.name }}">
-    test
-    </a>
     {{ debug }}
 </body>
 </html>
