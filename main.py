@@ -35,6 +35,7 @@ class UserAction(db.Model):
 
 class NewHandler(webapp.RequestHandler):
     def get(self):
+        """Set default parameter and display"""
         user = users.get_current_user()
         if not user:
             self.redirect("/") 
@@ -66,6 +67,7 @@ class NewHandler(webapp.RequestHandler):
         return
 
     def post(self):
+        """db.put() which user input"""
         user = users.get_current_user()
         name = self.request.POST['name']
         uas = UserAction.gql(\
@@ -91,6 +93,7 @@ class NewHandler(webapp.RequestHandler):
 
 class EditHandler(webapp.RequestHandler):
     def get(self,user,name):
+        """fetch DB and provide editing interface"""
         current_user = users.get_current_user()
         if not current_user:
             self.redirect("/") 
@@ -109,6 +112,7 @@ class EditHandler(webapp.RequestHandler):
         self.response.out.write(template.render(path,template_dict))
 
     def post(self):
+        """update UserAction"""
         ua = db.get(db.Key(self.request.POST['key']))
         ua.url0 = self.request.POST['url0']
         ua.url1 = self.request.POST['url1']
@@ -123,12 +127,14 @@ class EditHandler(webapp.RequestHandler):
 
 class DeleteHandler(webapp.RequestHandler):
     def get(self,key):
+        """delete UserAction"""
         ua = db.get(db.Key(urllib.unquote_plus(key)))
         ua.delete()
         self.redirect("/")
 
 class UserHandler(webapp.RequestHandler):
     def get(self,user,name):
+        """send get message followed by db"""
         query = UserAction.gql(\
             "WHERE name = :1 AND user = :2 ",\
             urllib.unquote_plus(name),\
@@ -155,10 +161,7 @@ class UserHandler(webapp.RequestHandler):
 
 class MainHandler(webapp.RequestHandler):
     def get(self):
-
-        link = """
-<a href="/new">create action</a><br />
-"""
+        """provide main page layout"""
         user = users.get_current_user()
         uas = UserAction.all()
         if user:
@@ -166,7 +169,7 @@ class MainHandler(webapp.RequestHandler):
                     (user.nickname(), users.create_logout_url("/")))
             template_dict = {
                 'greeting' : greeting,
-                'link' : link,
+                'link' : '',
                 'uas':uas.filter('user = ',user.email()),
                 }
         else:
@@ -174,15 +177,16 @@ class MainHandler(webapp.RequestHandler):
                     users.create_login_url("/"))
             template_dict = {
                 'greeting' : greeting,
-                'link' : '',
-                # 'uas':uas,
+                'link' : """
+<img src="https://cacoo.com/diagrams/n4Mydbj5iWA9M9LR-671C8.png">
+"""
                 }
         path = os.path.join(os.path.dirname(__file__),'index.html')
         self.response.out.write(template.render(path,template_dict))
 
 class IsbnHandler(webapp.RequestHandler):
     def get(self,isbn,formkey='dG5pUF9za3NBYWVTblNMc3FxOGxsWHc6MA'):
-
+        """get isbn from arduino and send rakuten and google"""
         self.response.headers['Content-Type'] = 'text/html; charset=UTF-8'
         booktitle = self.access_rakuten_api(isbn)
         self.access_google_docs(booktitle,formkey)
@@ -190,6 +194,7 @@ class IsbnHandler(webapp.RequestHandler):
         self.response.out.write(booktitle)
 
     def access_rakuten_api(self,isbn):
+        """send isbn and get xml and parse"""
         config = ConfigParser.ConfigParser()
         config.read('arduinoproxy.config')
         developerId = config.get('rakuten','developerId')
@@ -211,7 +216,7 @@ class IsbnHandler(webapp.RequestHandler):
             return 'connection failed'
 
     def access_google_docs(self,booktitle,formkey):
-
+        """send book title to google spreadsheet"""
         url = 'http://spreadsheets.google.com/formResponse?'\
                 + 'formkey=' + formkey\
                 + '&ifq'
@@ -228,7 +233,7 @@ class IsbnHandler(webapp.RequestHandler):
             raise
 
     def access_google_calendar(self,booktitle):
-
+        """send booktitle to google calender"""
         config = ConfigParser.ConfigParser()
         config.read('arduinoproxy.config')
 
