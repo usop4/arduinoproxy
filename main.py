@@ -1,15 +1,16 @@
 #!/usr/bin/env python
 
-import os
 import cgi
+import os
+import time
 import urllib
 
 from google.appengine.api import urlfetch
 from google.appengine.api import users
-from google.appengine.ext import webapp
 from google.appengine.ext import db
-from google.appengine.ext.webapp import util
+from google.appengine.ext import webapp
 from google.appengine.ext.webapp import template
+from google.appengine.ext.webapp import util
 from xml.dom import minidom
 
 import atom
@@ -32,22 +33,153 @@ class UserAction(db.Model):
     TagName = db.StringProperty()
     val1 = db.StringProperty()
 
-class Gcal(db.Model):
-    title = db.StringProperty(required=True)
-    description = db.TextProperty()
-    time = db.DateTimeProperty()
-    location = db.TextProperty()
-    creator = db.UserProperty()
-    edit_link = db.TextProperty()
-    gcal_event_link = db.TextProperty()
-    gcal_event_xml = db.TextProperty()
+class StoredToken(db.Model):
+    user_email = db.StringProperty(required=True)
+    session_token = db.StringProperty(required=True)
+
+
+class CalendarHandler(webapp.RequestHandler):
+    def __init__(self):
+        self.current_user = None
+        self.token_scope = None
+        self.client = None
+        self.token = None
+
+    def post(self):
+        event_status = 'not_created'
+        event_link = None
+
+        self.current_user = users.GetCurrentUser()
+
+        self.ManageAuth()
+        self.LookupToken()
+
+        form = cgi.FieldStorage()
+
+        event = self.InsertEvent(
+                form['event_title'].value,
+                form['event_description'].value,)
+        if event is not None:
+            event_status = 'created'
+
+        template_dict = {
+                'debug' : 'Success to insert event to calendar',
+                'event_status' : event_status,
+                'event_title' : form['event_title'],
+                'event_description' : form['event_description'],}
+        path = os.path.join(os.path.dirname(__file__),'index.html')
+        self.response.out.write(template.render(path,template_dict))
+
+    def get(self):
+        self.current_user = users.GetCurrentUser()
+        if not self.current_user:
+            greeting = (u"<a href=\"%s\">login</a>" %\
+                    users.create_login_url("/cal"))
+            template_dict = {
+                    'debug' : 'not user',
+                    'greeting' : greeting
+                    }
+            path = os.path.join(os.path.dirname(__file__),'index.html')
+            self.response.out.write(template.render(path,template_dict))
+
+        else:
+            self.token = self.request.get('token')
+            self.ManageAuth()
+            self.LookupToken()
+            if self.client.GetAuthSubToken() is not None:
+                self.feed_url = 'http://www.google.com/calendar/feeds/default/private/full'
+                greeting = (u"%s <a href=\"%s\">logout</a>" %(\
+                    self.current_user.nickname(),
+                    users.create_logout_url("/cal")))
+                template_dict = {
+                    'authsub':True,
+                    'user': self.current_user.email(),
+                    'greeting': greeting,
+                    'sample_event_title':'sample event',
+                    'sample_description':'sample description'
+                    }
+                path = os.path.join(os.path.dirname(__file__),'index.html')
+                self.response.out.write(template.render(path,template_dict))
+            else:
+                template_dict = {
+                    'authsub_url': self.client.GenerateAuthSubURL(
+                    'http://localhost:8080/cal',
+                    'http://www.google.com/m8/feeds/ http://www.google.com/calendar/feeds',
+                    secure=False, session=True),
+                        }
+                path = os.path.join(os.path.dirname(__file__),'index.html')
+                self.response.out.write(template.render(path,template_dict))
+
+    def ManageAuth(self):
+        self.client = gdata.service.GDataService()
+        gdata.alt.appengine.run_on_appengine(self.client)
+        if self.token:
+            self.UpgradeAndStoreToken()
+
+    def LookupToken(self):
+        if self.current_user:
+            stored_tokens = StoredToken.gql(
+                'WHERE user_email = :1',
+                self.current_user.email())
+            for token in stored_tokens:
+                    self.client.SetAuthSubToken(token.session_token)
+                    return
+
+    def UpgradeAndStoreToken(self):
+        self.client.SetAuthSubToken(self.token)
+        self.client.UpgradeToSessionToken()
+        if self.current_user:
+            new_token = StoredToken(
+                    user_email=self.current_user.email(),
+                    session_token=self.client.GetAuthSubToken())
+            new_token.put()
+            self.redirect('http://localhost:8080/cal')
+
+    def InsertEvent(self,title,description=None):
+        self.calendar_client = gdata.calendar.service.CalendarService()
+        gdata.alt.appengine.run_on_appengine(self.calendar_client)
+        self.calendar_client.SetAuthSubToken(self.client.GetAuthSubToken())
+
+        event = gdata.calendar.CalendarEventEntry()
+        event.title = atom.Title(text=title)
+        event.content = atom.Content(text=description)
+
+        new_event = self.calendar_client.InsertEvent(event,
+                '/calendar/feeds/default/private/full')
+        return new_event
+
+class CalendarInsert(CalendarHandler):
+    def get(self,email,title):
+
+        self.current_user = users.GetCurrentUser()
+
+        self.ManageAuth()
+        self.LookupToken(email)
+
+        form = cgi.FieldStorage()
+
+        event = self.InsertEvent(title,'')
+        if event is not None:
+            event_status = 'created'
+
+        template_dict = {
+                'debug' : 'Success to insert event to calendar',}
+        path = os.path.join(os.path.dirname(__file__),'index.html')
+        self.response.out.write(template.render(path,template_dict))
+
+    def LookupToken(self,email):
+        stored_tokens = StoredToken.gql(
+            'WHERE user_email = :1',email)
+        for token in stored_tokens:
+            self.client.SetAuthSubToken(token.session_token)
+            return
 
 class NewHandler(webapp.RequestHandler):
     def get(self):
         """Set default parameter and display"""
         user = users.get_current_user()
         if not user:
-            self.redirect("/") 
+            self.redirect("/")
             return
         cnt = 0
         while 1:
@@ -70,7 +202,7 @@ class NewHandler(webapp.RequestHandler):
                 'url1' : 'atom.xml',
                 'type':'ByTagName',
                 'TagName':'title',
-                }                
+                }
         path = os.path.join(os.path.dirname(__file__),'edit.html')
         self.response.out.write(template.render(path,template_dict))
         return
@@ -103,9 +235,9 @@ class NewHandler(webapp.RequestHandler):
 class EditHandler(webapp.RequestHandler):
     def get(self,user,name):
         """fetch DB and provide editing interface"""
-        current_user = users.get_current_user()
-        if not current_user:
-            self.redirect("/") 
+        user = users.get_current_user()
+        if not user:
+            self.redirect("/")
             return
         query = UserAction.gql(\
                 "WHERE name = :1 AND user = :2 ",\
@@ -154,9 +286,13 @@ class UserHandler(webapp.RequestHandler):
             xml = urlfetch.fetch(url).content
         except:
             raise
-        dom = minidom.parseString(xml)
         if ua.type == 'ByTagName':
-            ByTagName = dom.getElementsByTagName(ua.TagName)
+            try:
+                dom = minidom.parseString(xml)
+                ByTagName = dom.getElementsByTagName(ua.TagName)
+            except:
+                self.response.out.write('Error: check TagName')
+                self.response.out.write(sys.exc_info()[0])
             for i in range(100):
                 try:
                     self.response.out.write(ByTagName[i].childNodes[0].data)
@@ -168,27 +304,6 @@ class UserHandler(webapp.RequestHandler):
         else:
             pass
 
-class GcalHandler(webapp.RequestHandler):
-    def __init__(self):
-        self.calendar_client = gdata.calendar.service.CalendarService()
-        gdata.alt.appengine.run_on_appengine(self.calendar_client)
-
-    def get(self):
-        self.response.out.write('gcal')
-        token_request_url = None
-        auth_token = gdata.auth.extract_auth_sub_token_from_url(self.request.uri)
-        if auth_token:
-            self.calendar_client.SetAuthSubToken(
-                    self.calendar_client.upgrade_to_session_token(auth_token))
-            
-        if not isinstance(self.calendar_client.token_store.find_token(
-            'http://www.google.com/calendar/feeds/'),
-            gdata.auth.AuthSubToken):
-            token_request_uri = gdata.auth.generate_auth_sub_url(self.request.uri,('http://www.google.com/calendar/feeds/default/',))
-
-    def post(self):
-        pass
-
 class MainHandler(webapp.RequestHandler):
     def get(self):
         """provide main page layout"""
@@ -199,7 +314,11 @@ class MainHandler(webapp.RequestHandler):
                     (user.nickname(), users.create_logout_url("/")))
             template_dict = {
                 'greeting' : greeting,
-                'link' : '',
+                'link' : """
+<form action="/new" method="GET">
+<input type="submit" value="Create UserAction">
+</form>
+""",
                 'uas':uas.filter('user = ',user.email()),
                 }
         else:
@@ -271,11 +390,11 @@ class IsbnHandler(webapp.RequestHandler):
         calendar_service.email = config.get('google','id')
         calendar_service.password = config.get('google','pw')
         calendar_service.ProgrammaticLogin()
-        
+
         feedURI = 'https://www.google.com/calendar/feeds/'\
                 + 't.uehara%40gmail.com'\
                 + '/private/full'
-        
+
         event = gdata.calendar.CalendarEventEntry()
         event.title = atom.Title(text = booktitle )
         try:
@@ -294,7 +413,8 @@ def main():
         ('/edit', EditHandler),
         ('/del/(.*)', DeleteHandler),
         ('/user/(.*)/(.*)', UserHandler),
-        ('/gcal', GcalHandler),
+        ('/cal', CalendarHandler),
+        ('/cal/(.*)/(.*)', CalendarInsert),
     ],debug=True)
     util.run_wsgi_app(application)
 
