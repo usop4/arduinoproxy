@@ -5,9 +5,7 @@
     {{ debug }}<br />
     {% endif %}
     {{ greeting }}<br />
-    {% if authsub_url %}
-    <a href="{{ authsub_url }}">Authorize Access</a><br />
-    {% endif %}
+    {% if uas %}
     <ul>
         {% for ua in uas %}
         <li>
@@ -18,23 +16,28 @@
         </li>
         {% endfor %}
     </ul>
-    {{ link }}<br />
-
-    {% if authsub %}
-    <form id="post_form" method="POST">
-    <table id="post_table">
-    <tr>
-        <td><div class="form_label">Title:</div></td>
-        <td><input type="text" name="event_title" value="{{ sample_event_title }}" /></td></tr>
-    <tr>
-        <td colspan="2"><div class="form_label">Description:</div>
-            <textarea name="event_description" cols="25" rows="5">
-{{ sample_description }}</textarea></td></tr>
-    <tr>
-        <td colspan="2"><input type="submit" value="Submit!" /></td></tr></table>
+    <form action="/new" method="GET">
+        <input type="submit" value="Create UserAction">
+    </form>
+    <form action="/cal" method="GET">
+        <input type="submit" value="calendar setting">
     </form>
     {% endif %}
 
+    {% if authsub %}
+    You can send event to google calendar.<br />
+    <a href="/cal/{{ user }}/test">link</a><br />
+    <form id="post_form" method="POST">
+        <input type="text" name="event_title" value="arduinoproxy test" />
+        <input type="submit" value="insert to calender(test)" />
+    </form>
+    {% endif %}
+
+    {% if authsub_url %}
+    <a href="{{ authsub_url }}">Authorize Access</a>
+    {% endif %}
+
+    {{ link }}
 </body>
 </html>
 

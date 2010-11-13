@@ -4,6 +4,7 @@ import cgi
 import os
 import time
 import urllib
+import logging
 
 from google.appengine.api import urlfetch
 from google.appengine.api import users
@@ -24,6 +25,14 @@ import getopt, sys, string, time, atom
 
 import ConfigParser
 
+HOST_NAME="arduinoproxy.appspot.com"
+# HOST_NAME = "localhost:8080"
+
+INTRODUCTION = """
+arduino proxy  help Arduino to handle XML and authorization.<br />
+<img src="https://cacoo.com/diagrams/n4Mydbj5iWA9M9LR-42D9D.png">
+"""
+
 class UserAction(db.Model):
     user = db.StringProperty(required=True)
     name = db.StringProperty(required=True)
@@ -36,7 +45,6 @@ class UserAction(db.Model):
 class StoredToken(db.Model):
     user_email = db.StringProperty(required=True)
     session_token = db.StringProperty(required=True)
-
 
 class CalendarHandler(webapp.RequestHandler):
     def __init__(self):
@@ -57,58 +65,49 @@ class CalendarHandler(webapp.RequestHandler):
         form = cgi.FieldStorage()
 
         event = self.InsertEvent(
-                form['event_title'].value,
-                form['event_description'].value,)
+                form['event_title'].value,)
         if event is not None:
-            event_status = 'created'
-
-        template_dict = {
-                'debug' : 'Success to insert event to calendar',
-                'event_status' : event_status,
-                'event_title' : form['event_title'],
-                'event_description' : form['event_description'],}
-        path = os.path.join(os.path.dirname(__file__),'index.html')
-        self.response.out.write(template.render(path,template_dict))
+            template_dict = {
+                    'debug' : 'Success inserting to calendar',
+                    'event_status' : event_status,
+                    'event_title' : form['event_title']}
+            path = os.path.join(os.path.dirname(__file__),'index.html')
+            self.response.out.write(template.render(path,template_dict))
 
     def get(self):
         self.current_user = users.GetCurrentUser()
         if not self.current_user:
-            greeting = (u"<a href=\"%s\">login</a>" %\
-                    users.create_login_url("/cal"))
+            self.redirect('http://%s/' % (HOST_NAME))
+            return
+
+        self.token = self.request.get('token')
+        self.ManageAuth()
+        self.LookupToken()
+        # if self.client.GetAuthSubToken() is not None:
+        gast = self.client.GetAuthSubToken()
+        logging.info(gast)
+        if gast is not None:
+            self.feed_url = 'http://www.google.com/calendar/feeds/default/private/full'
+            greeting = (u"%s <a href=\"%s\">logout</a>" %(\
+                self.current_user.nickname(),
+                users.create_logout_url("/cal")))
             template_dict = {
-                    'debug' : 'not user',
-                    'greeting' : greeting
+                'authsub':True,
+                'user': self.current_user.email(),
+                'greeting': greeting,
+                'sample_event_title':'sample event',
+                }
+            path = os.path.join(os.path.dirname(__file__),'index.html')
+            self.response.out.write(template.render(path,template_dict))
+        else:
+            template_dict = {
+                'authsub_url': self.client.GenerateAuthSubURL(
+                    'http://%s/cal' % (HOST_NAME),
+                    'http://www.google.com/calendar/feeds',
+                    secure=False, session=True),
                     }
             path = os.path.join(os.path.dirname(__file__),'index.html')
             self.response.out.write(template.render(path,template_dict))
-
-        else:
-            self.token = self.request.get('token')
-            self.ManageAuth()
-            self.LookupToken()
-            if self.client.GetAuthSubToken() is not None:
-                self.feed_url = 'http://www.google.com/calendar/feeds/default/private/full'
-                greeting = (u"%s <a href=\"%s\">logout</a>" %(\
-                    self.current_user.nickname(),
-                    users.create_logout_url("/cal")))
-                template_dict = {
-                    'authsub':True,
-                    'user': self.current_user.email(),
-                    'greeting': greeting,
-                    'sample_event_title':'sample event',
-                    'sample_description':'sample description'
-                    }
-                path = os.path.join(os.path.dirname(__file__),'index.html')
-                self.response.out.write(template.render(path,template_dict))
-            else:
-                template_dict = {
-                    'authsub_url': self.client.GenerateAuthSubURL(
-                    'http://localhost:8080/cal',
-                    'http://www.google.com/m8/feeds/ http://www.google.com/calendar/feeds',
-                    secure=False, session=True),
-                        }
-                path = os.path.join(os.path.dirname(__file__),'index.html')
-                self.response.out.write(template.render(path,template_dict))
 
     def ManageAuth(self):
         self.client = gdata.service.GDataService()
@@ -133,41 +132,46 @@ class CalendarHandler(webapp.RequestHandler):
                     user_email=self.current_user.email(),
                     session_token=self.client.GetAuthSubToken())
             new_token.put()
-            self.redirect('http://localhost:8080/cal')
+            self.redirect('http://%s/cal' % (HOST_NAME))
 
-    def InsertEvent(self,title,description=None):
+    def InsertEvent(self, title, description=None):
         self.calendar_client = gdata.calendar.service.CalendarService()
         gdata.alt.appengine.run_on_appengine(self.calendar_client)
         self.calendar_client.SetAuthSubToken(self.client.GetAuthSubToken())
 
         event = gdata.calendar.CalendarEventEntry()
         event.title = atom.Title(text=title)
-        event.content = atom.Content(text=description)
 
-        new_event = self.calendar_client.InsertEvent(event,
-                '/calendar/feeds/default/private/full')
-        return new_event
+        try:
+            new_event = self.calendar_client.InsertEvent(event,
+                    '/calendar/feeds/default/private/full')
+            return new_event
+        except:
+            template_dict = {
+                'debug':'You need auth. If continue, click below',
+                'authsub_url': self.client.GenerateAuthSubURL(
+                    'http://%s/cal' % (HOST_NAME),
+                    'http://www.google.com/calendar/feeds',
+                    secure=False, session=True),
+                        }
+            path = os.path.join(os.path.dirname(__file__),'index.html')
+            self.response.out.write(template.render(path,template_dict))
+            return None
 
 class CalendarInsert(CalendarHandler):
-    def get(self,email,title):
+    def get(self, email, title):
 
         self.current_user = users.GetCurrentUser()
-
         self.ManageAuth()
         self.LookupToken(email)
 
         form = cgi.FieldStorage()
-
         event = self.InsertEvent(title,'')
+        logging.info(event)
         if event is not None:
-            event_status = 'created'
+            self.response.out.write('Success to insert event to calendar')
 
-        template_dict = {
-                'debug' : 'Success to insert event to calendar',}
-        path = os.path.join(os.path.dirname(__file__),'index.html')
-        self.response.out.write(template.render(path,template_dict))
-
-    def LookupToken(self,email):
+    def LookupToken(self, email):
         stored_tokens = StoredToken.gql(
             'WHERE user_email = :1',email)
         for token in stored_tokens:
@@ -195,13 +199,13 @@ class NewHandler(webapp.RequestHandler):
 
         template_dict = {
                 'form_action' : 'new',
-                'user':user.email(),
-                'name' : name,
-                'url0' : 'http://goodsite.cocolog-nifty.com/',
-                'val1' : 'uessay/',
-                'url1' : 'atom.xml',
-                'type':'ByTagName',
-                'TagName':'title',
+                'user': user.email(),
+                'name': name,
+                'url0': 'http://goodsite.cocolog-nifty.com/',
+                'val1': 'uessay/',
+                'url1': 'atom.xml',
+                'type': 'ByTagName',
+                'TagName': 'title',
                 }
         path = os.path.join(os.path.dirname(__file__),'edit.html')
         self.response.out.write(template.render(path,template_dict))
@@ -233,7 +237,7 @@ class NewHandler(webapp.RequestHandler):
         self.redirect("/")
 
 class EditHandler(webapp.RequestHandler):
-    def get(self,user,name):
+    def get(self, user, name):
         """fetch DB and provide editing interface"""
         user = users.get_current_user()
         if not user:
@@ -267,14 +271,14 @@ class EditHandler(webapp.RequestHandler):
             raise
 
 class DeleteHandler(webapp.RequestHandler):
-    def get(self,key):
+    def get(self, key):
         """delete UserAction"""
         ua = db.get(db.Key(urllib.unquote_plus(key)))
         ua.delete()
         self.redirect("/")
 
 class UserHandler(webapp.RequestHandler):
-    def get(self,user,name):
+    def get(self, user, name):
         """send get message followed by db"""
         query = UserAction.gql(\
             "WHERE name = :1 AND user = :2 ",\
@@ -314,11 +318,6 @@ class MainHandler(webapp.RequestHandler):
                     (user.nickname(), users.create_logout_url("/")))
             template_dict = {
                 'greeting' : greeting,
-                'link' : """
-<form action="/new" method="GET">
-<input type="submit" value="Create UserAction">
-</form>
-""",
                 'uas':uas.filter('user = ',user.email()),
                 }
         else:
@@ -326,15 +325,13 @@ class MainHandler(webapp.RequestHandler):
                     users.create_login_url("/"))
             template_dict = {
                 'greeting' : greeting,
-                'link' : """
-<img src="https://cacoo.com/diagrams/n4Mydbj5iWA9M9LR-671C8.png">
-"""
+                'link' :INTRODUCTION
                 }
         path = os.path.join(os.path.dirname(__file__),'index.html')
         self.response.out.write(template.render(path,template_dict))
 
 class IsbnHandler(webapp.RequestHandler):
-    def get(self,isbn,formkey='dG5pUF9za3NBYWVTblNMc3FxOGxsWHc6MA'):
+    def get(self, isbn, formkey='dG5pUF9za3NBYWVTblNMc3FxOGxsWHc6MA'):
         """get isbn from arduino and send rakuten and google"""
         self.response.headers['Content-Type'] = 'text/html; charset=UTF-8'
         booktitle = self.access_rakuten_api(isbn)
@@ -342,7 +339,7 @@ class IsbnHandler(webapp.RequestHandler):
         self.access_google_calendar(booktitle)
         self.response.out.write(booktitle)
 
-    def access_rakuten_api(self,isbn):
+    def access_rakuten_api(self, isbn):
         """send isbn and get xml and parse"""
         config = ConfigParser.ConfigParser()
         config.read('arduinoproxy.config')
@@ -364,7 +361,7 @@ class IsbnHandler(webapp.RequestHandler):
         except:
             return 'connection failed'
 
-    def access_google_docs(self,booktitle,formkey):
+    def access_google_docs(self, booktitle, formkey):
         """send book title to google spreadsheet"""
         url = 'http://spreadsheets.google.com/formResponse?'\
                 + 'formkey=' + formkey\
@@ -381,7 +378,7 @@ class IsbnHandler(webapp.RequestHandler):
             self.response.out.write('err:')
             raise
 
-    def access_google_calendar(self,booktitle):
+    def access_google_calendar(self, booktitle):
         """send booktitle to google calendar"""
         config = ConfigParser.ConfigParser()
         config.read('arduinoproxy.config')
