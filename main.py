@@ -1,5 +1,12 @@
 #!/usr/bin/env python
 
+HOST_NAME="arduinoproxy.appspot.com"
+# HOST_NAME = "localhost:8080"
+
+INTRODUCTION = """
+arduino proxy  help Arduino to handle XML and authorization.<br />
+<img src="https://cacoo.com/diagrams/n4Mydbj5iWA9M9LR-42D9D.png">
+"""
 import cgi
 import os
 import time
@@ -25,13 +32,6 @@ import getopt, sys, string, time, atom
 
 import ConfigParser
 
-HOST_NAME="arduinoproxy.appspot.com"
-# HOST_NAME = "localhost:8080"
-
-INTRODUCTION = """
-arduino proxy  help Arduino to handle XML and authorization.<br />
-<img src="https://cacoo.com/diagrams/n4Mydbj5iWA9M9LR-42D9D.png">
-"""
 
 class UserAction(db.Model):
     user = db.StringProperty(required=True)
@@ -239,7 +239,6 @@ class NewHandler(webapp.RequestHandler):
 class EditHandler(webapp.RequestHandler):
     def get(self, user, name):
         """fetch DB and provide editing interface"""
-        user = users.get_current_user()
         if not user:
             self.redirect("/")
             return
@@ -249,9 +248,9 @@ class EditHandler(webapp.RequestHandler):
                 urllib.unquote_plus(user))
         ua = query.get()
         template_dict = {
-                'ua':ua,
-                'form_action':'edit',
-                'key':str(ua.key()),
+                'ua': ua,
+                'form_action': 'edit',
+                'key': str(ua.key()),
                 }
         path = os.path.join(os.path.dirname(__file__),'edit.html')
         self.response.out.write(template.render(path,template_dict))
