@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 HOST_NAME="arduinoproxy.appspot.com"
-# HOST_NAME = "localhost:8080"
+HOST_NAME = "localhost:8080"
 
 INTRODUCTION = """
 arduino proxy  help Arduino to handle XML and authorization.<br />
@@ -32,7 +32,6 @@ import getopt, sys, string, time, atom
 
 import ConfigParser
 
-
 class UserAction(db.Model):
     user = db.StringProperty(required=True)
     name = db.StringProperty(required=True)
@@ -54,6 +53,7 @@ class CalendarHandler(webapp.RequestHandler):
         self.token = None
 
     def post(self):
+        """post method is to check from setting page"""
         event_status = 'not_created'
         event_link = None
 
@@ -75,6 +75,7 @@ class CalendarHandler(webapp.RequestHandler):
             self.response.out.write(template.render(path,template_dict))
 
     def get(self):
+        """provide calendar setting page via login status"""
         self.current_user = users.GetCurrentUser()
         if not self.current_user:
             self.redirect('http://%s/' % (HOST_NAME))
@@ -83,7 +84,6 @@ class CalendarHandler(webapp.RequestHandler):
         self.token = self.request.get('token')
         self.ManageAuth()
         self.LookupToken()
-        # if self.client.GetAuthSubToken() is not None:
         gast = self.client.GetAuthSubToken()
         logging.info(gast)
         if gast is not None:
@@ -94,6 +94,7 @@ class CalendarHandler(webapp.RequestHandler):
             template_dict = {
                 'authsub':True,
                 'user': self.current_user.email(),
+                'host_name': HOST_NAME,
                 'greeting': greeting,
                 'sample_event_title':'sample event',
                 }
@@ -113,7 +114,14 @@ class CalendarHandler(webapp.RequestHandler):
         self.client = gdata.service.GDataService()
         gdata.alt.appengine.run_on_appengine(self.client)
         if self.token:
-            self.UpgradeAndStoreToken()
+            self.client.SetAuthSubToken(self.token)
+            self.client.UpgradeToSessionToken()
+            if self.current_user:
+                new_token = StoredToken(
+                        user_email=self.current_user.email(),
+                        session_token=self.client.GetAuthSubToken())
+                new_token.put()
+                self.redirect('http://%s/cal' % (HOST_NAME))
 
     def LookupToken(self):
         if self.current_user:
@@ -124,17 +132,8 @@ class CalendarHandler(webapp.RequestHandler):
                     self.client.SetAuthSubToken(token.session_token)
                     return
 
-    def UpgradeAndStoreToken(self):
-        self.client.SetAuthSubToken(self.token)
-        self.client.UpgradeToSessionToken()
-        if self.current_user:
-            new_token = StoredToken(
-                    user_email=self.current_user.email(),
-                    session_token=self.client.GetAuthSubToken())
-            new_token.put()
-            self.redirect('http://%s/cal' % (HOST_NAME))
-
     def InsertEvent(self, title, description=None):
+        """This func is called on calendar setting page"""
         self.calendar_client = gdata.calendar.service.CalendarService()
         gdata.alt.appengine.run_on_appengine(self.calendar_client)
         self.calendar_client.SetAuthSubToken(self.client.GetAuthSubToken())
@@ -160,7 +159,7 @@ class CalendarHandler(webapp.RequestHandler):
 
 class CalendarInsert(CalendarHandler):
     def get(self, email, title):
-
+        """direct insert title to calender"""
         self.current_user = users.GetCurrentUser()
         self.ManageAuth()
         self.LookupToken(email)
@@ -172,6 +171,7 @@ class CalendarInsert(CalendarHandler):
             self.response.out.write('Success to insert event to calendar')
 
     def LookupToken(self, email):
+        """override for direct. Because direct usage have current_user"""
         stored_tokens = StoredToken.gql(
             'WHERE user_email = :1',email)
         for token in stored_tokens:

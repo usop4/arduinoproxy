@@ -26,11 +26,8 @@
 
     {% if authsub %}
     You can send event to google calendar.<br />
-    <a href="/cal/{{ user }}/test">link</a><br />
-    <form id="post_form" method="POST">
-        <input type="text" name="event_title" value="arduinoproxy test" />
-        <input type="submit" value="insert to calender(test)" />
-    </form>
+    Replace 'test' below.<br />
+    <input type="text" size="50" value="http://{{ host_name }}/cal/{{ user }}/test"><br />
     {% endif %}
 
     {% if authsub_url %}
