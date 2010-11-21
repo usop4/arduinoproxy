@@ -18,24 +18,24 @@
 <script type="text/javascript">
     $(function() {
         $("input[name=type]").val(['{{ type }}{{ ua.type }}']);
-        if( "{{ form_action }}" == "edit" ){
-            $("input[name=name]").attr("disabled","disabled");
-        }
-    }); 
+        //if( "{{ form_action }}" == "edit" ){
+        //    $("input[name=name]").attr("disabled","disabled");
+        //}
+    });
 </script>
 </head>
 <body>
     <h1><a href="/">arduino proxy</a></h1>
     <form action="/{{ form_action }}" method="post">
         <input type="hidden" name="key" value="{{ ua.key }}">
+        <input type="hidden" name="hash" value="{{ hash }}{{ ua.hash }}">
         {{ user }}{{ ua.user }}/
         <input type="text" name="name" value="{{ name }}{{ ua.name }}">
-        
         <div class="block">
             <span class="h2bold">Fetch</span>
         <a href ="https://cacoo.com/diagrams/n4Mydbj5iWA9M9LR-671C8.png">
         [?]
-    </a><br />
+        </a><br />
         <input type="text" name="url0" value="{{ url0 }}{{ ua.url0 }}">
         <br />
         +Parameter<br />

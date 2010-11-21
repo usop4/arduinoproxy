@@ -1,18 +1,18 @@
 <html>
     <body>
-    <h1><a href="/">arduino proxy</a></h1>
     {% if debug %}
     {{ debug }}<br />
     {% endif %}
+    <h1><a href="/">arduino proxy</a></h1>
     {{ greeting }}<br />
     {% if uas %}
     <ul>
         {% for ua in uas %}
         <li>
-        <a href="/edit/{{ ua.user }}/{{ ua.name }}">
+        <a href="/edit/{{ ua.key }}">
         {{ ua.name }}</a>
         <a href="/del/{{ ua.key }}">[x]</a>
-        <a href="/user/{{ ua.user }}/{{ ua.name }}">[test]</a>
+        <a href="/user/{{ ua.key }}">[test]</a><br />
         </li>
         {% endfor %}
     </ul>

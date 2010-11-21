@@ -45,7 +45,7 @@ class StoredToken(db.Model):
     user_email = db.StringProperty(required=True)
     session_token = db.StringProperty(required=True)
 
-class CalendarHandler(webapp.RequestHandler):
+class CalendarSetting(webapp.RequestHandler):
     def __init__(self):
         self.current_user = None
         self.token_scope = None
@@ -54,22 +54,13 @@ class CalendarHandler(webapp.RequestHandler):
 
     def post(self):
         """post method is to check from setting page"""
-        event_status = 'not_created'
-        event_link = None
-
-        self.current_user = users.GetCurrentUser()
-
         self.ManageAuth()
         self.LookupToken()
-
         form = cgi.FieldStorage()
-
-        event = self.InsertEvent(
-                form['event_title'].value,)
+        event = self.InsertEvent(form['event_title'].value)
         if event is not None:
             template_dict = {
                     'debug' : 'Success inserting to calendar',
-                    'event_status' : event_status,
                     'event_title' : form['event_title']}
             path = os.path.join(os.path.dirname(__file__),'index.html')
             self.response.out.write(template.render(path,template_dict))
@@ -84,9 +75,7 @@ class CalendarHandler(webapp.RequestHandler):
         self.token = self.request.get('token')
         self.ManageAuth()
         self.LookupToken()
-        gast = self.client.GetAuthSubToken()
-        logging.info(gast)
-        if gast is not None:
+        if self.client.GetAuthSubToken() is not None:
             self.feed_url = 'http://www.google.com/calendar/feeds/default/private/full'
             greeting = (u"%s <a href=\"%s\">logout</a>" %(\
                 self.current_user.nickname(),
@@ -96,7 +85,6 @@ class CalendarHandler(webapp.RequestHandler):
                 'user': self.current_user.email(),
                 'host_name': HOST_NAME,
                 'greeting': greeting,
-                'sample_event_title':'sample event',
                 }
             path = os.path.join(os.path.dirname(__file__),'index.html')
             self.response.out.write(template.render(path,template_dict))
@@ -137,17 +125,16 @@ class CalendarHandler(webapp.RequestHandler):
         self.calendar_client = gdata.calendar.service.CalendarService()
         gdata.alt.appengine.run_on_appengine(self.calendar_client)
         self.calendar_client.SetAuthSubToken(self.client.GetAuthSubToken())
-
         event = gdata.calendar.CalendarEventEntry()
         event.title = atom.Title(text=title)
 
         try:
-            new_event = self.calendar_client.InsertEvent(event,
-                    '/calendar/feeds/default/private/full')
+            new_event = self.calendar_client.InsertEvent(
+                event,'/calendar/feeds/default/private/full')
             return new_event
         except:
             template_dict = {
-                'debug':'You need auth. If continue, click below',
+                'debug': 'You need auth. If continue, click below',
                 'authsub_url': self.client.GenerateAuthSubURL(
                     'http://%s/cal' % (HOST_NAME),
                     'http://www.google.com/calendar/feeds',
@@ -157,16 +144,14 @@ class CalendarHandler(webapp.RequestHandler):
             self.response.out.write(template.render(path,template_dict))
             return None
 
-class CalendarInsert(CalendarHandler):
+class CalendarInsert(CalendarSetting):
     def get(self, email, title):
         """direct insert title to calender"""
         self.current_user = users.GetCurrentUser()
         self.ManageAuth()
         self.LookupToken(email)
-
         form = cgi.FieldStorage()
         event = self.InsertEvent(title,'')
-        logging.info(event)
         if event is not None:
             self.response.out.write('Success to insert event to calendar')
 
@@ -213,40 +198,36 @@ class NewHandler(webapp.RequestHandler):
 
     def post(self):
         """db.put() which user input"""
+        form = cgi.FieldStorage()
         user = users.get_current_user()
-        name = self.request.POST['name']
-        uas = UserAction.gql(\
-            "WHERE name = :1 AND user = :2 ",\
-            name,\
-            user.email())
-        if uas.count():
-            self.response.out.write('Error : <font color="red">')
+        name = form['name'].value
+        uas = UserAction.gql(
+                "WHERE name = :1 AND user = :2 ",
+                name,
+                user.email())
+        if uas.count() > 0:
             self.response.out.write(name)
-            self.response.out.write('</font> is used. Please type other name.')
+            self.response.out.write(' is used. Please type other name.')
             return
         ua = UserAction(
                 user = user.email(),
-                name = self.request.POST['name'],
-                url0 = self.request.POST['url0'],
-                url1 = self.request.POST['url1'],
-                type = self.request.POST['type'],
-                TagName= self.request.POST['TagName'],
-                val1 = self.request.POST['val1'],
+                name = form['name'].value,
+                url0 = form['url0'].value,
+                url1 = form['url1'].value,
+                type = form['type'].value,
+                TagName= form['TagName'].value,
+                val1 = form['val1'].value,
                 )
         ua.put()
         self.redirect("/")
 
 class EditHandler(webapp.RequestHandler):
-    def get(self, user, name):
+    def get(self, key ):
         """fetch DB and provide editing interface"""
-        if not user:
+        if not users.GetCurrentUser():
             self.redirect("/")
             return
-        query = UserAction.gql(\
-                "WHERE name = :1 AND user = :2 ",\
-                urllib.unquote_plus(name),\
-                urllib.unquote_plus(user))
-        ua = query.get()
+        ua = db.get(db.Key(urllib.unquote_plus(key)))
         template_dict = {
                 'ua': ua,
                 'form_action': 'edit',
@@ -257,12 +238,14 @@ class EditHandler(webapp.RequestHandler):
 
     def post(self):
         """update UserAction"""
-        ua = db.get(db.Key(self.request.POST['key']))
-        ua.url0 = self.request.POST['url0']
-        ua.url1 = self.request.POST['url1']
-        ua.type = self.request.POST['type']
-        ua.TagName = self.request.POST['TagName']
-        ua.val1 = self.request.POST['val1']
+        form = cgi.FieldStorage()
+        ua = db.get(db.Key(form['key'].value))
+        ua.name = form['name'].value
+        ua.url0 = form['url0'].value
+        ua.url1 = form['url1'].value
+        ua.type = form['type'].value
+        ua.TagName = form['TagName'].value
+        ua.val1 = form['val1'].value
         try:
             db.put(ua)
             self.redirect("/")
@@ -277,13 +260,10 @@ class DeleteHandler(webapp.RequestHandler):
         self.redirect("/")
 
 class UserHandler(webapp.RequestHandler):
-    def get(self, user, name):
+    def get(self, key):
         """send get message followed by db"""
-        query = UserAction.gql(\
-            "WHERE name = :1 AND user = :2 ",\
-            urllib.unquote_plus(name),\
-            urllib.unquote_plus(user))
-        ua = query.get()
+        # ua = UserAction.all().filter('hash = ',hash).get()
+        ua = db.get(db.Key(urllib.unquote_plus(key)))
         url = ua.url0 + ua.val1 + ua.url1
         try:
             xml = urlfetch.fetch(url).content
@@ -386,11 +366,9 @@ class IsbnHandler(webapp.RequestHandler):
         calendar_service.email = config.get('google','id')
         calendar_service.password = config.get('google','pw')
         calendar_service.ProgrammaticLogin()
-
         feedURI = 'https://www.google.com/calendar/feeds/'\
-                + 't.uehara%40gmail.com'\
+                + urllib.quote(config.get('google','id'))\
                 + '/private/full'
-
         event = gdata.calendar.CalendarEventEntry()
         event.title = atom.Title(text = booktitle )
         try:
@@ -405,11 +383,11 @@ def main():
         ('/isbn/([0-9]{10})/(.*)', IsbnHandler),
         ('/isbn/(.*)', IsbnHandler),
         ('/new', NewHandler),
-        ('/edit/(.*)/(.*)', EditHandler),
+        ('/edit/(.*)', EditHandler),
         ('/edit', EditHandler),
         ('/del/(.*)', DeleteHandler),
-        ('/user/(.*)/(.*)', UserHandler),
-        ('/cal', CalendarHandler),
+        ('/user/(.*)', UserHandler),
+        ('/cal', CalendarSetting),
         ('/cal/(.*)/(.*)', CalendarInsert),
     ],debug=True)
     util.run_wsgi_app(application)
