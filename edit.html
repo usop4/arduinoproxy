@@ -1,6 +1,6 @@
 <html>
 <head>
-<title>arduino proxy : {{ form_action }}</title>
+<title>arduino proxy : {{ action }}</title>
 <style type="text/css">
 <!--
 .block{
@@ -18,17 +18,14 @@
 <script type="text/javascript">
     $(function() {
         $("input[name=type]").val(['{{ type }}{{ ua.type }}']);
-        //if( "{{ form_action }}" == "edit" ){
-        //    $("input[name=name]").attr("disabled","disabled");
-        //}
     });
 </script>
 </head>
 <body>
     <h1><a href="/">arduino proxy</a></h1>
-    <form action="/{{ form_action }}" method="post">
+    <form action="/{{ action }}" method="post">
         <input type="hidden" name="key" value="{{ ua.key }}">
-        <input type="hidden" name="hash" value="{{ hash }}{{ ua.hash }}">
+        <input type="hidden" name="user" value="{{ ua.user}}">
         {{ user }}{{ ua.user }}/
         <input type="text" name="name" value="{{ name }}{{ ua.name }}">
         <div class="block">

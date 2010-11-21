@@ -35,6 +35,7 @@ import ConfigParser
 class UserAction(db.Model):
     user = db.StringProperty(required=True)
     name = db.StringProperty(required=True)
+    desc = db.TextProperty()
     url0 = db.StringProperty(required=True)
     url1 = db.StringProperty()
     type = db.StringProperty(required=True)
@@ -67,7 +68,7 @@ class CalendarSetting(webapp.RequestHandler):
 
     def get(self):
         """provide calendar setting page via login status"""
-        self.current_user = users.GetCurrentUser()
+        self.current_user = users.get_current_user()
         if not self.current_user:
             self.redirect('http://%s/' % (HOST_NAME))
             return
@@ -147,7 +148,7 @@ class CalendarSetting(webapp.RequestHandler):
 class CalendarInsert(CalendarSetting):
     def get(self, email, title):
         """direct insert title to calender"""
-        self.current_user = users.GetCurrentUser()
+        self.current_user = users.get_current_user()
         self.ManageAuth()
         self.LookupToken(email)
         form = cgi.FieldStorage()
@@ -168,22 +169,19 @@ class NewHandler(webapp.RequestHandler):
         """Set default parameter and display"""
         user = users.get_current_user()
         if not user:
-            self.redirect("/")
-            return
+            user = users.User('anonymous')
         cnt = 0
         while 1:
             name = 'action' + str(cnt)
             uas = UserAction.gql(\
                 "WHERE name = :1 AND user = :2 ",\
-                name,\
-                user.email())
+                name,user.email())
             if uas.count():
                 cnt = cnt + 1
             else:
                 break
-
         template_dict = {
-                'form_action' : 'new',
+                'action' : 'new',
                 'user': user.email(),
                 'name': name,
                 'url0': 'http://goodsite.cocolog-nifty.com/',
@@ -200,6 +198,8 @@ class NewHandler(webapp.RequestHandler):
         """db.put() which user input"""
         form = cgi.FieldStorage()
         user = users.get_current_user()
+        if not user:
+            user = users.User('anonymous')
         name = form['name'].value
         uas = UserAction.gql(
                 "WHERE name = :1 AND user = :2 ",
@@ -209,6 +209,7 @@ class NewHandler(webapp.RequestHandler):
             self.response.out.write(name)
             self.response.out.write(' is used. Please type other name.')
             return
+        logging.info(user)
         ua = UserAction(
                 user = user.email(),
                 name = form['name'].value,
@@ -224,13 +225,13 @@ class NewHandler(webapp.RequestHandler):
 class EditHandler(webapp.RequestHandler):
     def get(self, key ):
         """fetch DB and provide editing interface"""
-        if not users.GetCurrentUser():
-            self.redirect("/")
-            return
+        user = users.get_current_user()
+        if not user:
+            user = users.User('anonymous')
         ua = db.get(db.Key(urllib.unquote_plus(key)))
         template_dict = {
                 'ua': ua,
-                'form_action': 'edit',
+                'action': 'edit',
                 'key': str(ua.key()),
                 }
         path = os.path.join(os.path.dirname(__file__),'edit.html')
@@ -262,7 +263,6 @@ class DeleteHandler(webapp.RequestHandler):
 class UserHandler(webapp.RequestHandler):
     def get(self, key):
         """send get message followed by db"""
-        # ua = UserAction.all().filter('hash = ',hash).get()
         ua = db.get(db.Key(urllib.unquote_plus(key)))
         url = ua.url0 + ua.val1 + ua.url1
         try:
@@ -300,11 +300,14 @@ class MainHandler(webapp.RequestHandler):
                 'uas':uas.filter('user = ',user.email()),
                 }
         else:
+            user = users.User('anonymous')
             greeting = (u"<a href=\"%s\">login</a>" %\
                     users.create_login_url("/"))
             template_dict = {
                 'greeting' : greeting,
-                'link' :INTRODUCTION
+                'anonymous' : 'anonymous',
+                'uas':uas.filter('user = ',user.email()),
+                # 'link' :INTRODUCTION
                 }
         path = os.path.join(os.path.dirname(__file__),'index.html')
         self.response.out.write(template.render(path,template_dict))
