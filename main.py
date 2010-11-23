@@ -1,14 +1,20 @@
 #!/usr/bin/env python
+# -*- coding: utf-8 -*-
 
 HOST_NAME="arduinoproxy.appspot.com"
-HOST_NAME = "localhost:8080"
+# HOST_NAME = "localhost:8080"
 
 INTRODUCTION = """
 arduino proxy  help Arduino to handle XML and authorization.<br />
-<img src="https://cacoo.com/diagrams/n4Mydbj5iWA9M9LR-42D9D.png">
+If you login this site, you can create UserAction which is<br />
+invisible by others.
 """
+import atom
 import cgi
+import getopt
 import os
+import sys
+import string
 import time
 import urllib
 import logging
@@ -21,14 +27,12 @@ from google.appengine.ext.webapp import template
 from google.appengine.ext.webapp import util
 from xml.dom import minidom
 
-import atom
 import atom.service
 import gdata.auth
 import gdata.alt.appengine
 import gdata.calendar
 import gdata.calendar.service
 import gdata.service
-import getopt, sys, string, time, atom
 
 import ConfigParser
 
@@ -41,6 +45,7 @@ class UserAction(db.Model):
     type = db.StringProperty(required=True)
     TagName = db.StringProperty()
     val1 = db.StringProperty()
+    editable = db.BooleanProperty()
 
 class StoredToken(db.Model):
     user_email = db.StringProperty(required=True)
@@ -116,7 +121,7 @@ class CalendarSetting(webapp.RequestHandler):
         if self.current_user:
             stored_tokens = StoredToken.gql(
                 'WHERE user_email = :1',
-                self.current_user.email())
+                self.current_user.email())/e
             for token in stored_tokens:
                     self.client.SetAuthSubToken(token.session_token)
                     return
@@ -184,9 +189,10 @@ class NewHandler(webapp.RequestHandler):
                 'action' : 'new',
                 'user': user.email(),
                 'name': name,
-                'url0': 'http://goodsite.cocolog-nifty.com/',
-                'val1': 'uessay/',
-                'url1': 'atom.xml',
+                'desc': 'Write here description',
+                'url0': 'http://arduino.cc/',
+                'val1': 'blog',
+                'url1': '/feed/',
                 'type': 'ByTagName',
                 'TagName': 'title',
                 }
@@ -209,16 +215,22 @@ class NewHandler(webapp.RequestHandler):
             self.response.out.write(name)
             self.response.out.write(' is used. Please type other name.')
             return
-        logging.info(user)
         ua = UserAction(
-                user = user.email(),
-                name = form['name'].value,
-                url0 = form['url0'].value,
-                url1 = form['url1'].value,
-                type = form['type'].value,
-                TagName= form['TagName'].value,
-                val1 = form['val1'].value,
-                )
+            user = user.email(),
+            name = unicode(form['name'].value,'utf_8'),
+            url0 = form['url0'].value,
+            type = form['type'].value,
+            editable = True
+        )
+        ua.put()
+        if form.has_key('desc'):
+            ua.desc = unicode(form['desc'].value,'utf_8')
+        if form.has_key('url1'):
+            ua.url1 = form['url1'].value
+        if form.has_key('TagName'):
+            ua.TagName= form['TagName'].value
+        if form.has_key('val1'):
+            ua.val1 = form['val1'].value
         ua.put()
         self.redirect("/")
 
@@ -241,12 +253,25 @@ class EditHandler(webapp.RequestHandler):
         """update UserAction"""
         form = cgi.FieldStorage()
         ua = db.get(db.Key(form['key'].value))
-        ua.name = form['name'].value
+        ua.name = unicode(form['name'].value,'utf_8')
         ua.url0 = form['url0'].value
-        ua.url1 = form['url1'].value
         ua.type = form['type'].value
-        ua.TagName = form['TagName'].value
-        ua.val1 = form['val1'].value
+        if form.has_key('desc'):
+            ua.desc = unicode(form['desc'].value,'utf_8')
+        else:
+            ua.desc = None
+        if form.has_key('url1'):
+            ua.url1 = form['url1'].value
+        else:
+            ua.url1 = None
+        if form.has_key('TagName'):
+            ua.TagName= form['TagName'].value
+        else:
+            ua.TagName = None
+        if form.has_key('val1'):
+            ua.val1 = form['val1'].value
+        else:
+            ua.val1 = None
         try:
             db.put(ua)
             self.redirect("/")
@@ -261,13 +286,18 @@ class DeleteHandler(webapp.RequestHandler):
         self.redirect("/")
 
 class UserHandler(webapp.RequestHandler):
-    def get(self, key):
+    def get(self, key, val1=''):
         """send get message followed by db"""
         ua = db.get(db.Key(urllib.unquote_plus(key)))
-        url = ua.url0 + ua.val1 + ua.url1
+        url1 = ''
+        if ua.url1:
+            url1 = ua.url1
+        url = ua.url0 + val1 + url1
+        logging.info(url)
         try:
             xml = urlfetch.fetch(url).content
         except:
+            logging.info('urlfetch failed')
             raise
         if ua.type == 'ByTagName':
             try:
@@ -307,7 +337,7 @@ class MainHandler(webapp.RequestHandler):
                 'greeting' : greeting,
                 'anonymous' : 'anonymous',
                 'uas':uas.filter('user = ',user.email()),
-                # 'link' :INTRODUCTION
+                'link' :INTRODUCTION
                 }
         path = os.path.join(os.path.dirname(__file__),'index.html')
         self.response.out.write(template.render(path,template_dict))
@@ -389,6 +419,7 @@ def main():
         ('/edit/(.*)', EditHandler),
         ('/edit', EditHandler),
         ('/del/(.*)', DeleteHandler),
+        ('/user/(.*)/(.*)', UserHandler),
         ('/user/(.*)', UserHandler),
         ('/cal', CalendarSetting),
         ('/cal/(.*)/(.*)', CalendarInsert),

@@ -1,38 +1,51 @@
 <html>
 <head>
+<meta http-equiv="content-type" content="text/html; charset=utf-8" />
+<title>arduino proxy</title>
+<link type="text/css" rel="stylesheet" href="/main.css">
 <script type="text/javascript" src="http://code.jquery.com/jquery-1.4.3.min.js"></script>
 <script type="text/javascript">
     $(function() {
         if( "{{ anonymous }}" == "anonymous" ){
-            $('#cal').attr("disabled","disabled");
+            $('#calbtn').attr("disabled","disabled");
         }
     });
 </script>
 </head>
-<body>
-    {% if debug %}
-    {{ debug }}<br />
-    {% endif %}
+<body><div id="body">
     <h1><a href="/">arduino proxy</a></h1>
+    <div id="navi">
     {{ greeting }}<br />
+    <p>
+        <form action="/new" method="GET">
+        <input type="submit" value="Create UserAction">
+        </form>
+    </p>
+    <p>
+        <form action="/cal" method="GET">
+        <input type="submit" id="calbtn" value="Calendar Setting">
+        </form>
+    </p>
+    </div>
+    <div id="content">
+        {{ link }}
+        <ul>
     {% if uas %}
-    <ul>
         {% for ua in uas %}
         <li>
         <a href="/edit/{{ ua.key }}">
-        {{ ua.name }}</a>
+            {{ ua.name }}</a>
+        {% if ua.editable %}
         <a href="/del/{{ ua.key }}">[x]</a>
-        <a href="/user/{{ ua.key }}">[test]</a><br />
+        {% endif %}
+        <a href="/user/{{ ua.key }}{% if ua.val1 %}/{{ ua.val1 }}{% endif %}">[test]</a><br />
+        {% if ua.desc %}
+        {{ ua.desc }}<br />
+        {% endif %}
         </li>
         {% endfor %}
-    </ul>
-    <form action="/new" method="GET">
-        <input type="submit" value="Create UserAction">
-    </form>
-    <form action="/cal" method="GET">
-        <input type="submit" id="cal" value="calendar setting">
-    </form>
     {% endif %}
+    </ul>
 
     {% if authsub %}
     You can send event to google calendar.<br />
@@ -44,7 +57,14 @@
     <a href="{{ authsub_url }}">Authorize Access</a>
     {% endif %}
 
-    {{ link }}
+    </div>
+    <div id="footer">
+        <a href="http://twitter.com/share" class="twitter-share-button" data-count="horizontal" data-via="usopyon" data-lang="ja">Tweet</a><script type="text/javascript" src="http://platform.twitter.com/widgets.js"></script>
+    {% if debug %}
+    {{ debug }}<br />
+    {% endif %}
+    </div>
+</div>
 </body>
 </html>
 
