@@ -5,7 +5,7 @@
 <link type="text/css" rel="stylesheet" href="/main.css">
 <script type="text/javascript" src="http://code.jquery.com/jquery-1.4.3.min.js"></script>
 <script type="text/javascript">
-    $(function() {
+    $(document).ready(function() {
         $("input[name=type]").val(['{{ type }}{{ ua.type }}']);
         if( "{{ ua.editable }}" == "False" ){
             $('#savebtn').attr("disabled","disabled");
@@ -24,17 +24,17 @@
 	<form action="/{{ action }}" method="post">
         <input type="hidden" name="key" value="{{ ua.key }}">
         <input type="hidden" name="user" value="{{ ua.user}}">
-        {{ user }}{{ ua.user }}/
-        <input type="text" name="name" value="{{ name }}{{ ua.name }}"><br />
-
+        <div class="nonblock">
+        <input type="text" name="name" value="{{ name }}{{ ua.name }}">*<br />
+    </div>
         <div class="block">
             <span class="h2bold">Description</span><br />
-            <textarea name="desc" rows="3" cols="40">{{ desc }}{% if ua.desc %}{{ ua.desc }}{% endif %}</textarea>
+            <textarea name="desc" rows="2" cols="50">{{ desc }}{% if ua.desc %}{{ ua.desc }}{% endif %}</textarea>
         </div>
 
         <div class="block">
             <span class="h2bold">Fetch</span><br />
-        <input type="text" size="40" name="url0" value="{{ url0 }}{{ ua.url0 }}">*
+        <input type="text" size="70" name="url0" value="{{ url0 }}{{ ua.url0 }}">*
         <br />
         +Parameter<br />
         +<input type="text" name="url1" value="{{ url1 }}{% if ua.url1 %}{{ ua.url1 }}{% endif %}">
@@ -42,7 +42,7 @@
 
         <div class="block">
         <span class="h2bold">Test Parameter</span><br />
-        <input type="text" name="val1" value="{{ val1 }}{% if ua.val %}{{ ua.val1 }}{% endif %}">
+        <input type="text" name="val1" value="{{ val1 }}{% if ua.val1 %}{{ ua.val1 }}{% endif %}">
         </div>
 
         <div class="block">
@@ -55,10 +55,16 @@
         </div>
         <input id="savebtn" type="submit" value="save">
     </form>
+    {% if ua %}
+    <div class="nonblock">
+        <p>Use this URL to paste Arduino code</p>
+    <input type="text" readonly size="70" value="http://{{ hostname }}/user/{{ ua.key }}/{{ ua.val1 }}">
+    {% endif %}
     {{ debug }}
     </div>
+    </div>
     <div id="footer">.
-	</div>
+    </div>
 
 </div></body>
 </html>

@@ -1,0 +1,32 @@
+#body { margin:0 auto; width: 700px; }
+#navi {
+    float: left;
+    width: 120px;
+    height: 400px;
+    background-color:#ccccff;
+}
+#content {
+    float: left;
+    width: 580px;
+    background-color:#ffffff;
+}
+#description {  }
+#footer { width:100%; clear:both; }
+.nolist { list-style:none; margin: 0px 0px 0px 0px; }
+
+.block{
+    margin:5px;
+    border:2px dotted #9090FF;
+    padding:5px 5px 5px 5px;
+    max-width:500px
+}
+.nonblock{
+    margin:5px;
+    border:2px #DDDDDD;
+    padding:5px 5px 5px 5px;
+    max-width:500px
+}
+.h2bold{
+    font-weight:bold;
+}
+
