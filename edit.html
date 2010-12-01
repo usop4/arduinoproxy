@@ -10,7 +10,16 @@
         if( "{{ ua.editable }}" == "False" ){
             $('#savebtn').attr("disabled","disabled");
         }
-    });
+        if( "{{ fetch }}{{ ua.fetch }}" == "True" ){
+            $('input[name=checkbox]').attr('checked',true);
+        }
+        if( "{{ ua.gdoc }}" == "True" ){
+            $('input[name=gdoc]').attr('checked',true);
+        }
+        if( "{{ ua.gcal }}" == "True" ){
+            $('input[name=gcal]').attr('checked',true);
+        }
+     });
 </script>
 </head>
 <body><div id="body">
@@ -26,34 +35,35 @@
         <input type="hidden" name="user" value="{{ ua.user}}">
         <div class="nonblock">
         <input type="text" name="name" value="{{ name }}{{ ua.name }}">*<br />
-    </div>
-        <div class="block">
-            <span class="h2bold">Description</span><br />
-            <textarea name="desc" rows="2" cols="50">{{ desc }}{% if ua.desc %}{{ ua.desc }}{% endif %}</textarea>
+        <textarea name="desc" rows="2" cols="50">{{ desc }}{% if ua.desc %}{{ ua.desc }}{% endif %}</textarea>
         </div>
 
         <div class="block">
-            <span class="h2bold">Fetch</span><br />
-        <input type="text" size="70" name="url0" value="{{ url0 }}{{ ua.url0 }}">*
-        <br />
-        +Parameter<br />
-        +<input type="text" name="url1" value="{{ url1 }}{% if ua.url1 %}{{ ua.url1 }}{% endif %}">
-        <br /></div>
+        <input type="checkbox" value="fetch" name="fetch">
+        <span class="h1bold">Fetch&Parse</span><br />
+        <p><input type="text" size="70" name="url0" value="{{ url0 }}{{ ua.url0 }}">*</p>
+        <p> + Parameter ( debug
+        <input type="text" name="val1" value="{{ val1 }}{% if ua.val1 %}{{ ua.val1 }}{% endif %}">)<br /></p>
+        <p> + <input type="text" name="url1" value="{{ url1 }}{% if ua.url1 %}{{ ua.url1 }}{% endif %}"></p>
 
-        <div class="block">
-        <span class="h2bold">Test Parameter</span><br />
-        <input type="text" name="val1" value="{{ val1 }}{% if ua.val1 %}{{ ua.val1 }}{% endif %}">
-        </div>
-
-        <div class="block">
         <span class="h2bold">Response</span><br />
         <input type="radio" name="type" value="All">
         All<br />
-        <input type="radio" name="type" value="ByTagName">
+        <input id="ByTagName" type="radio" name="type" value="ByTagName">
         ByTagName
-        <input type="text" name="TagName" value="{{ TagName }}{% if ua.TagName %}{{ ua.TagName }}{% endif %}"><br />
+        <input id="TagName" type="text" size="6" name="TagName" value="{{ TagName }}{% if ua.TagName %}{{ ua.TagName }}{% endif %}">[
+        <input id="NodeNum" type="text" size="1" name="NodeNum" value="{{ NodeNum }}{{ ua.NodeNum }}">]<br />
         </div>
-        <input id="savebtn" type="submit" value="save">
+
+        <div class="block">
+        <span class="h2bold">Special Output</span><br />
+        <input type="checkbox" value="gcal" name="gcal">Google Calendar
+        <br />
+        <input type="checkbox" value="gdoc" name="gdoc">Google Docs (formkey
+        <input type="text" name="formkey" value="{{ ua.formkey }}">)<br />
+        </div>
+
+       <input id="savebtn" type="submit" value="save">
     </form>
     {% if ua %}
     <div class="nonblock">

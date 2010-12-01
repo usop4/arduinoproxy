@@ -2,7 +2,7 @@
 #navi {
     float: left;
     width: 120px;
-    height: 400px;
+    min-height: 400px;
     background-color:#ccccff;
 }
 #content {
@@ -25,6 +25,9 @@
     border:2px #DDDDDD;
     padding:5px 5px 5px 5px;
     max-width:500px
+}
+.h1bold{
+    font-weight:bold;
 }
 .h2bold{
     font-weight:bold;

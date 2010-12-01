@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 HOST_NAME="arduinoproxy.appspot.com"
-#HOST_NAME = "localhost:8080"
+HOST_NAME = "localhost:8080"
 
 INTRODUCTION = """
 arduino proxy  help Arduino to handle XML and authorization.<br />
@@ -12,8 +12,9 @@ invisible from others and insert Google Calendar.
 import atom,atom.service
 import cgi,cgitb
 import logging
-import string
 import urllib
+
+import ConfigParser
 
 import gdata.auth
 import gdata.alt.appengine
@@ -29,39 +30,66 @@ from google.appengine.ext.webapp import template
 from google.appengine.ext.webapp import util
 from xml.dom import minidom
 
-import ConfigParser
-
 class UserAction(db.Model):
     user = db.StringProperty(required=True)
     name = db.StringProperty(required=True)
     desc = db.TextProperty()
-    url0 = db.StringProperty(required=True)
+    fetch = db.BooleanProperty()
+    url0 = db.StringProperty()
     url1 = db.StringProperty()
+    val1 = db.StringProperty()
     type = db.StringProperty(required=True)
     TagName = db.StringProperty()
-    val1 = db.StringProperty()
+    NodeNum = db.IntegerProperty()
     editable = db.BooleanProperty()
+    gcal = db.BooleanProperty()
+    gdoc = db.BooleanProperty()
+    formkey = db.StringProperty()
 
     def set_optional_value(self, form):
+
+        self.fetch = False
+        if form.getfirst('fetch'):
+            self.fetch = True
+
+        self.desc = ''
         if form.has_key('desc'):
             self.desc = unicode(form['desc'].value,'utf_8')
-        else:
-            self.desc = ''
+
+        self.url0 = ''
+        if form.has_key('url0'):
+            self.url0 = form['url0'].value
+
+        self.url1 = ''
         if form.has_key('url1'):
             self.url1 = form['url1'].value
-        else:
-            self.url1 = ''
+
+        self.TagName = ''
         if form.has_key('TagName'):
             self.TagName = form['TagName'].value
-        else:
-            self.TagName = ''
+
+        self.NodeNum = 0
+        if form.has_key('NodeNum'):
+            self.NodeNum = int(form['NodeNum'].value)
+
+        self.val1 = ''
         if form.has_key('val1'):
             self.val1 = form['val1'].value
-        else:
-            self.val1 = ''
+
+        self.gcal = False
+        if form.getfirst('gcal'):
+            self.gcal= True
+
+        self.gdoc = False
+        if form.getfirst('gdoc'):
+            self.gdoc = True
+
+        self.formkey=''
+        if form.getfirst('formkey'):
+            self.formkey = form['formkey'].value
         self.put()
 
-    def url(self):
+    def testurl(self):
         return 'http://' + HOST_NAME + '/user/'\
                 + str(self.key()) + '/' + self.val1
 
@@ -81,14 +109,27 @@ class UaCommon():
 
     def is_name_unique(self, name):
         uas = UserAction.gql(
-                "WHERE name = :1 AND user = :2 ",
-                name,
-                self.user.email())
+                "WHERE name = :1 AND user = :2 ", name, self.user.email())
         if uas.count() > 0:
             self.show_message(name + ' is used. Please type other name.')
             return 0
         else:
             return 1
+
+    def google_docs(self, str, formkey='dG5pUF9za3NBYWVTblNMc3FxOGxsWHc6MA'):
+        """send book title to google spreadsheet"""
+        url = 'http://spreadsheets.google.com/formResponse?'\
+                + 'formkey=' + formkey.rstrip() + '&ifq'
+        form_fields = {
+            "entry.1.single": str.rstrip(),
+            "submit": "submit"
+        }
+        try:
+            urlfetch.fetch(url = url,
+                payload = urllib.urlencode(form_fields),
+                method = urlfetch.POST)
+        except:
+            raise
 
 class NewHandler(UaCommon,webapp.RequestHandler):
     def __init__(self):
@@ -112,11 +153,13 @@ class NewHandler(UaCommon,webapp.RequestHandler):
                 'user': self.user.email(),
                 'name': name,
                 'desc': 'Write here description',
+                'fetch': True,
                 'url0': 'http://arduino.cc/',
                 'val1': 'blog',
                 'url1': '/feed/',
                 'type': 'ByTagName',
                 'TagName': 'title',
+                'NodeNum': 0,
                 }
         self.response.out.write(template.render('edit.html',template_dict))
         return
@@ -141,7 +184,7 @@ class NewHandler(UaCommon,webapp.RequestHandler):
             self.response.out.write(cgitb.handler())
             raise
         self.show_message('Success! Use this URL to paste Arduino code<br />\
-                    <input type="text" size = "70" value="' + ua.url() + '">')
+                    <input type="text" size = "70" value="' + ua.testurl() + '">')
         return
 
 class EditHandler(UaCommon,webapp.RequestHandler):
@@ -171,7 +214,7 @@ class EditHandler(UaCommon,webapp.RequestHandler):
             ua.set_optional_value(form)
             db.put(ua)
             self.show_message('Updated! Use this URL to paste Arduino code<br />\
-                    <input type="text" size = "70" value="' + ua.url() + '">')
+                    <input type="text" size = "70" value="' + ua.testurl() + '">')
         except:
             self.response.out.write(cgitb.handler())
             raise
@@ -183,38 +226,33 @@ class DeleteHandler(webapp.RequestHandler):
         ua.delete()
         self.redirect("/")
 
-class UserHandler(webapp.RequestHandler):
+class UserHandler(UaCommon,webapp.RequestHandler):
     def get(self, key, val1=''):
         """send get message followed by db"""
         ua = db.get(db.Key(urllib.unquote_plus(key)))
-        url1 = ''
-        if ua.url1:
-            url1 = ua.url1
-        url = ua.url0.rstrip() + urllib.unquote(val1.rstrip()) + url1.rstrip()
+        url = ua.url0.rstrip() + urllib.unquote(val1.rstrip())\
+                + ua.url1.rstrip()
+        str = ''
         try:
             xml = urlfetch.fetch(url).content
         except:
-            self.response.out.write('urlfetch failed')
             self.response.out.write(cgitb.handler())
-            logging.info('urlfetch failed')
             raise
         if ua.type == 'ByTagName':
             try:
                 dom = minidom.parseString(xml)
                 ByTagName = dom.getElementsByTagName(ua.TagName)
+                #str = ByTagName[0].childNodes[0].data
+                str = ByTagName[ua.NodeNum].childNodes[0].data
             except:
-                self.response.out.write('parse error: check TagName')
                 self.response.out.write(cgitb.handler())
-            for i in range(100):
-                try:
-                    self.response.out.write(ByTagName[i].childNodes[0].data)
-                    self.response.out.write('\n')
-                except:
-                    pass
         elif ua.type == 'All':
-            self.response.out.write(xml)
+            str = xml
         else:
             pass
+        self.response.out.write(str)
+        if ua.gdoc:
+            self.google_docs(str, ua.formkey)
 
 class MainHandler(webapp.RequestHandler):
 
@@ -241,12 +279,12 @@ class MainHandler(webapp.RequestHandler):
                 }
         self.response.out.write(template.render('index.html',template_dict))
 
-class IsbnHandler(webapp.RequestHandler):
+class IsbnHandler(UaCommon,webapp.RequestHandler):
     def get(self, isbn, formkey='dG5pUF9za3NBYWVTblNMc3FxOGxsWHc6MA'):
         """get isbn from arduino and send rakuten and google"""
         self.response.headers['Content-Type'] = 'text/html; charset=UTF-8'
         booktitle = self.access_rakuten_api(isbn)
-        self.access_google_docs(booktitle,formkey)
+        self.google_docs(booktitle,formkey)
         self.access_google_calendar(booktitle)
         self.response.out.write(booktitle)
 
@@ -271,23 +309,6 @@ class IsbnHandler(webapp.RequestHandler):
             return 'Book Not Fount:'+isbn
         except:
             return 'connection failed'
-
-    def access_google_docs(self, booktitle, formkey):
-        """send book title to google spreadsheet"""
-        url = 'http://spreadsheets.google.com/formResponse?'\
-                + 'formkey=' + formkey\
-                + '&ifq'
-        form_fields = {
-            "entry.1.single": booktitle,
-            "submit": "submit"
-        }
-        try:
-            urlfetch.fetch(url = url,
-                payload = urllib.urlencode(form_fields),
-                method = urlfetch.POST)
-        except:
-            self.response.out.write('err:')
-            raise
 
     def access_google_calendar(self, booktitle):
         """send booktitle to google calendar"""
@@ -432,7 +453,7 @@ def main():
         ('/edit/(.*)', EditHandler),
         ('/edit', EditHandler),
         ('/del/(.*)', DeleteHandler),
-        ('/user/([0-9a-zA-Z]{43,44})/(.*)', UserHandler),
+        ('/user/([0-9a-zA-Z]{1,99})/(.*)', UserHandler),
         ('/user/(.*)', UserHandler),
         ('/cal', CalendarSetting),
         ('/cal/(.*)/(.*)', CalendarInsert),
