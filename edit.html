@@ -10,14 +10,8 @@
         if( "{{ ua.editable }}" == "False" ){
             $('#savebtn').attr("disabled","disabled");
         }
-        if( "{{ fetch }}{{ ua.fetch }}" == "True" ){
-            $('input[name=checkbox]').attr('checked',true);
-        }
-        if( "{{ ua.gdoc }}" == "True" ){
-            $('input[name=gdoc]').attr('checked',true);
-        }
-        if( "{{ ua.gcal }}" == "True" ){
-            $('input[name=gcal]').attr('checked',true);
+        if( "{{ user }}" == "anonymous" ){
+            $('#gcalchk').attr("disabled","disabled");
         }
      });
 </script>
@@ -32,14 +26,14 @@
     <div id="content">
 	<form action="/{{ action }}" method="post">
         <input type="hidden" name="key" value="{{ ua.key }}">
-        <input type="hidden" name="user" value="{{ ua.user}}">
+        <input type="hidden" name="user" value="{{ user}}">
         <div class="nonblock">
         <input type="text" name="name" value="{{ name }}{{ ua.name }}">*<br />
         <textarea name="desc" rows="2" cols="50">{{ desc }}{% if ua.desc %}{{ ua.desc }}{% endif %}</textarea>
         </div>
 
         <div class="block">
-        <input type="checkbox" value="fetch" name="fetch">
+            <input type="checkbox" value="fetch" name="fetch" {% if ua.fetch %}checked{% endif %}{% if fetch %}checked{% endif %}>
         <span class="h1bold">Fetch&Parse</span><br />
         <p><input type="text" size="70" name="url0" value="{{ url0 }}{{ ua.url0 }}">*</p>
         <p> + Parameter ( debug
@@ -57,10 +51,14 @@
 
         <div class="block">
         <span class="h2bold">Special Output</span><br />
-        <input type="checkbox" value="gcal" name="gcal">Google Calendar
-        <br />
-        <input type="checkbox" value="gdoc" name="gdoc">Google Docs (formkey
+        <input type="checkbox" value="gdoc" name="gdoc" {% if ua.gdoc %}checked{% endif %}>
+        Google Docs (formkey
         <input type="text" name="formkey" value="{{ ua.formkey }}">)<br />
+        <input id="gcalchk" type="checkbox" value="gcal" name="gcal"
+        {% if ua.gcal %}checked {% endif %}
+        >
+        Google Calendar
+        <br />
         </div>
 
        <input id="savebtn" type="submit" value="save">

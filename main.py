@@ -97,11 +97,22 @@ class StoredToken(db.Model):
     user_email = db.StringProperty(required=True)
     session_token = db.StringProperty(required=True)
 
-class UaCommon():
+class UaCommon(webapp.RequestHandler):
     def __init__(self):
         self.user = users.get_current_user()
-        if not self.user:
+        if self.user:
+            self.greeting = (u"%s <a href=\"%s\">logout</a>" %\
+                    (self.user.nickname(), users.create_logout_url("/")))
+        else:
             self.user = users.User('anonymous')
+            self.greeting = (u"<a href=\"%s\">login</a>" %\
+                    users.create_login_url("/"))
+
+    def handle_exception(self, exception, debug_mode):
+        """http://d.hatena.ne.jp/griefworker/20100302/handle_exception"""
+        logging.exception(exception)
+        #super(BaseHandler, self).handle_exception(exception, debug_mode)
+        self.response.out.write(cgitb.handler())
 
     def show_message(self, str):
         template_dict = { 'message' : str }
@@ -109,12 +120,11 @@ class UaCommon():
 
     def is_name_unique(self, name):
         uas = UserAction.gql(
-                "WHERE name = :1 AND user = :2 ", name, self.user.email())
-        if uas.count() > 0:
+                "WHERE name = :1 AND user = :2 ", name, self.user)
+        cnt = uas.count()
+        if cnt > 0:
             self.show_message(name + ' is used. Please type other name.')
-            return 0
-        else:
-            return 1
+        return cnt
 
     def google_docs(self, str, formkey='dG5pUF9za3NBYWVTblNMc3FxOGxsWHc6MA'):
         """send book title to google spreadsheet"""
@@ -124,14 +134,11 @@ class UaCommon():
             "entry.1.single": str.rstrip(),
             "submit": "submit"
         }
-        try:
-            urlfetch.fetch(url = url,
-                payload = urllib.urlencode(form_fields),
-                method = urlfetch.POST)
-        except:
-            raise
+        urlfetch.fetch(url = url,
+            payload = urllib.urlencode(form_fields),
+            method = urlfetch.POST, deadline=10)
 
-class NewHandler(UaCommon,webapp.RequestHandler):
+class NewHandler(UaCommon):
     def __init__(self):
         UaCommon.__init__(self)
 
@@ -142,7 +149,7 @@ class NewHandler(UaCommon,webapp.RequestHandler):
             name = 'action' + str(cnt)
             uas = UserAction.gql(\
                 "WHERE name = :1 AND user = :2 ",\
-                name,self.user.email())
+                name,self.user)
             if uas.count():
                 cnt = cnt + 1
             else:
@@ -150,7 +157,7 @@ class NewHandler(UaCommon,webapp.RequestHandler):
         template_dict = {
                 'hostname' : HOST_NAME,
                 'action' : 'new',
-                'user': self.user.email(),
+                'user': self.user,
                 'name': name,
                 'desc': 'Write here description',
                 'fetch': True,
@@ -168,31 +175,29 @@ class NewHandler(UaCommon,webapp.RequestHandler):
         """db.put() which user input"""
         form = cgi.FieldStorage()
         name = unicode(form['name'].value,'utf_8')
-        if self.is_name_unique(name) == 0 :
+        if self.is_name_unique(name):
             return
-        try:
-            ua = UserAction(
-                user = self.user.email(),
-                name = name,
-                url0 = form['url0'].value,
-                type = form['type'].value,
-                editable = True
-            )
-            ua.set_optional_value(form)
-            ua.put()
-        except:
-            self.response.out.write(cgitb.handler())
-            raise
+        logging.info('before setting ua')
+        ua = UserAction(
+            user = self.user.email(),
+            name = name,
+            type = form['type'].value,
+            editable = True
+        )
+        logging.info('after setting ua')
+        ua.set_optional_value(form)
+        ua.put()
         self.show_message('Success! Use this URL to paste Arduino code<br />\
                     <input type="text" size = "70" value="' + ua.testurl() + '">')
         return
 
-class EditHandler(UaCommon,webapp.RequestHandler):
+class EditHandler(UaCommon):
     def get(self, key ):
         """fetch DB and provide editing interface"""
         ua = db.get(db.Key(urllib.unquote_plus(key)))
         template_dict = {
                 'hostname' : HOST_NAME,
+                'user': ua.user,
                 'ua': ua,
                 'action': 'edit',
                 'key': str(ua.key()),
@@ -206,77 +211,60 @@ class EditHandler(UaCommon,webapp.RequestHandler):
             if form.has_key(p) is False:
                 self.show_message('You must input marked inputbox')
                 return
-        try:
-            ua = db.get(db.Key(form['key'].value))
-            ua.name = unicode(form['name'].value,'utf_8')
-            ua.url0 = form['url0'].value
-            ua.type = form['type'].value
-            ua.set_optional_value(form)
-            db.put(ua)
-            self.show_message('Updated! Use this URL to paste Arduino code<br />\
-                    <input type="text" size = "70" value="' + ua.testurl() + '">')
-        except:
-            self.response.out.write(cgitb.handler())
-            raise
+        ua = db.get(db.Key(form['key'].value))
+        ua.name = unicode(form['name'].value,'utf_8')
+        ua.url0 = form['url0'].value
+        ua.type = form['type'].value
+        ua.set_optional_value(form)
+        db.put(ua)
+        self.show_message('Updated! Use this URL to paste Arduino code<br />\
+                <input type="text" size = "70" value="' + ua.testurl() + '">')
 
-class DeleteHandler(webapp.RequestHandler):
+class DeleteHandler(UaCommon):
     def get(self, key):
         """delete UserAction"""
         ua = db.get(db.Key(urllib.unquote_plus(key)))
         ua.delete()
         self.redirect("/")
 
-class UserHandler(UaCommon,webapp.RequestHandler):
+class UserHandler(UaCommon):
     def get(self, key, val1=''):
         """send get message followed by db"""
         ua = db.get(db.Key(urllib.unquote_plus(key)))
         url = ua.url0.rstrip() + urllib.unquote(val1.rstrip())\
                 + ua.url1.rstrip()
         str = ''
-        try:
-            xml = urlfetch.fetch(url).content
-        except:
-            self.response.out.write(cgitb.handler())
-            raise
+        xml = urlfetch.fetch(url, deadline=10).content
         if ua.type == 'ByTagName':
-            try:
-                dom = minidom.parseString(xml)
-                ByTagName = dom.getElementsByTagName(ua.TagName)
-                #str = ByTagName[0].childNodes[0].data
-                str = ByTagName[ua.NodeNum].childNodes[0].data
-            except:
-                self.response.out.write(cgitb.handler())
+            dom = minidom.parseString(xml)
+            ByTagName = dom.getElementsByTagName(ua.TagName)
+            #str = ByTagName[0].childNodes[0].data
+            str = ByTagName[ua.NodeNum].childNodes[0].data
         elif ua.type == 'All':
             str = xml
         else:
             pass
-        self.response.out.write(str)
         if ua.gdoc:
             self.google_docs(str, ua.formkey)
+        if ua.gcal:
+            ci = CalendarInsert()
+            if ci.insert_event(self.user, str):
+                pass
+            else:
+                self.response.out.write('retry calendar setting from mainpage<br />')
+        self.response.out.write(str)
 
-class MainHandler(webapp.RequestHandler):
+class MainHandler(UaCommon):
 
     def get(self):
         """provide main page layout"""
-        user = users.get_current_user()
-        uas =  UserAction.all()
-        if user:
-            greeting = (u"%s <a href=\"%s\">logout</a>" %\
-                    (user.nickname(), users.create_logout_url("/")))
-            template_dict = {
-                'greeting' : greeting,
-                'uas':uas.filter('user = ',user.email()),
+        uas =  UserAction.all().filter('user = ',self.user.email())
+        template_dict = {
+                'greeting': self.greeting,
+                'uas':      uas
                 }
-        else:
-            user = users.User('anonymous')
-            greeting = (u"<a href=\"%s\">login</a>" %\
-                    users.create_login_url("/"))
-            template_dict = {
-                'greeting' : greeting,
-                'anonymous' : 'anonymous',
-                'uas':uas.filter('user = ',user.email()),
-                'link' :INTRODUCTION
-                }
+        if self.user == 'anonymous':
+            template_dict['link'] = INTRODUCTION
         self.response.out.write(template.render('index.html',template_dict))
 
 class IsbnHandler(UaCommon,webapp.RequestHandler):
@@ -299,7 +287,7 @@ class IsbnHandler(UaCommon,webapp.RequestHandler):
             + '&version=2010-03-18'\
             + '&isbn=' + isbn
         try:
-            xml = urlfetch.fetch(url).content
+            xml = urlfetch.fetch(url, deadline=10).content
             dom = minidom.parseString(xml)
             titles = dom.getElementsByTagName("title")
             subtitles = dom.getElementsByTagName("subTitle")
@@ -324,11 +312,7 @@ class IsbnHandler(UaCommon,webapp.RequestHandler):
                 + '/private/full'
         event = gdata.calendar.CalendarEventEntry()
         event.title = atom.Title(text = booktitle )
-        try:
-            new_event = calendar_service.InsertEvent(event, feedURI)
-        except:
-            self.response.out.write('err:')
-            raise
+        new_event = calendar_service.InsertEvent(event, feedURI)
 
 class CalendarSetting(webapp.RequestHandler):
     def __init__(self):
@@ -426,13 +410,21 @@ class CalendarSetting(webapp.RequestHandler):
             return None
 
 class CalendarInsert(CalendarSetting):
-    def get(self, email, title):
+
+    def insert_event(self, email, title):
         """direct insert title to calender"""
         self.current_user = users.get_current_user()
         self.ManageAuth()
         self.LookupToken(email)
         form = cgi.FieldStorage()
-        event = self.InsertEvent(title,'')
+        try:
+            event = self.InsertEvent(title)
+        except:
+            return None
+        return event
+
+    def get(self, email, title):
+        event = self.insert_event(email, title)
         if event is not None:
             self.response.out.write('Success to insert event to calendar')
 
